@@ -191,7 +191,38 @@ export function CamposCartaoForm({ f, contas, destacar = [], foco }: {
       <div className={d('dia_vencimento')}><Campo rotulo="Fatura vence dia" erro={f.erros.dia_vencimento}><Texto numerico maxLength={2} placeholder="10" {...f.campo('dia_vencimento')} /></Campo></div>
       <div className={d('conta_pagamento_id')}><Campo rotulo="Conta que paga a fatura"><Selecao {...f.campo('conta_pagamento_id')} itens={contas} /></Campo></div>
       <div className={d('anuidade')}><Campo rotulo="Anuidade por mês" erro={f.erros.anuidade} dica="Vazio ou 0 = isento"><Moeda {...f.campo('anuidade')} /></Campo></div>
+      <div className={d('faturas')} style={{ gridColumn: '1 / -1' }}><ListaFaturas f={f} /></div>
       <div className={d('observacao')} style={{ gridColumn: '1 / -1' }}><Campo rotulo="Observações"><AreaTexto linhas={2} placeholder="Pontos, cashback, seguros, isenção…" {...f.campo('observacao')} /></Campo></div>
     </>
+  )
+}
+
+/** Faturas informadas (atual e próximas), uma linha por mês de vencimento. */
+function ListaFaturas({ f }: { f: Form<CamposCartao> }) {
+  const lista = f.valores.faturas
+  const total = lista.reduce((s, x) => s + (paraCentavos(x.valor) ?? 0), 0)
+  const mudar = (i: number, valor: string) => f.setValores((v) => ({ ...v, faturas: v.faturas.map((x, j) => (j === i ? { ...x, valor } : x)) }))
+  const tirar = (i: number) => f.setValores((v) => ({ ...v, faturas: v.faturas.filter((_, j) => j !== i) }))
+  const adicionar = () => f.setValores((v) => {
+    const ultima = v.faturas[v.faturas.length - 1]?.competencia ?? competenciaDe(hoje())
+    const proxima = v.faturas.length ? deslocarCompetencia(ultima, 1) : ultima
+    return { ...v, faturas: [...v.faturas, { competencia: proxima, valor: '' }] }
+  })
+  return (
+    <div className="lista-faturas">
+      <div className="lista-faturas-topo">
+        <span className="campo-rotulo">Faturas</span>
+        {lista.length > 0 && <span className="sutil">total <Dinheiro valor={total} tom="neutro" /></span>}
+      </div>
+      {!lista.length && <p className="sutil" style={{ margin: 0 }}>A atual e as próximas, como aparecem no app do banco. Pode pedir no chat: "dez 10.125,89, jan 1.281,29…".</p>}
+      {lista.map((x, i) => (
+        <div className="fatura-linha" key={`${x.competencia}-${i}`}>
+          <span className="fatura-mes">{rotuloCompetencia(x.competencia)}</span>
+          <Moeda value={x.valor} onChange={(v) => mudar(i, v)} />
+          <button type="button" className="botao-icone perigo" onClick={() => tirar(i)} aria-label={`Tirar fatura de ${rotuloCompetencia(x.competencia)}`}>×</button>
+        </div>
+      ))}
+      <button type="button" className="aba" onClick={adicionar}>+ fatura</button>
+    </div>
   )
 }

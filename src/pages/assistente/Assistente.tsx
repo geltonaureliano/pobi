@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
-import { hoje, competenciaDe, deslocarCompetencia } from '../../shared/data'
-import { paraCentavos } from '../../shared/dinheiro'
+import { hoje, competenciaDe, deslocarCompetencia, rotuloCompetencia } from '../../shared/data'
+import { centavosParaTexto, formatarBRL, paraCentavos } from '../../shared/dinheiro'
 import type { Motor } from '../../domain/analise/model'
 import { comMotorDisponivel, lerAjuste, motoresDisponiveis, NOME_MOTOR, salvarAjuste, type MotorDisponivel } from '../../domain/analise/repository'
 import type { AlvoAssistente, AnexoLocal, ConversaIA, MensagemChat, MetaConversa } from '../../domain/assistente/model'
@@ -21,8 +21,8 @@ import { Simbolo } from '../../ui/components/Marca'
 import type { Dados } from '../../ui/useDados'
 import { CamposCartaoForm, CamposCustoForm, CamposDividaForm, CamposReceitaForm } from './formularios'
 import type { Cartao } from '../../domain/cartao/model'
-import { camposDeCartao, cartaoVazio, validarCartao, type CamposCartao } from '../../domain/cartao/form'
-import { arquivarCartao, atualizarCartao, criarCartao, excluirCartao } from '../../domain/cartao/repository'
+import { camposDeCartao, cartaoVazio, faturasDoFormulario, validarCartao, type CamposCartao } from '../../domain/cartao/form'
+import { arquivarCartao, atualizarCartao, criarCartao, excluirCartao, excluirFatura, salvarFatura } from '../../domain/cartao/repository'
 import type { CustoFixo } from '../../domain/custo-fixo/model'
 import { camposDeCusto, custoVazio, validarCusto, type CamposCusto } from '../../domain/custo-fixo/form'
 import { alternarCustoFixo, atualizarCustoFixo, criarCustoFixo, excluirCustoFixo } from '../../domain/custo-fixo/repository'
@@ -84,7 +84,7 @@ const ROTULOS: Record<string, string> = {
   nome: 'nome', tipo: 'tipo', credor: 'credor', contratado: 'valor contratado', valor_parcela: 'parcela', total: 'total', parcelas: 'nº de parcelas',
   parcelas_pagas: 'parcelas pagas', primeiro: '1º vencimento', data_contratacao: 'data do contrato', taxa: 'juros a.m.', taxa_anual: 'juros a.a.',
   cet: 'CET', sistema: 'sistema', observacao: 'observações', fonte: 'fonte', regra: 'regra', valor_hora: 'valor da hora', horas_dia: 'horas/dia', desconto_pct: 'desconto', defasagem: 'mês de referência', valor: 'valor', valor_min: 'mínimo',
-  valor_max: 'máximo', dia: 'dia', limite: 'limite', dia_fechamento: 'fechamento', dia_vencimento: 'vencimento', conta_pagamento_id: 'conta que paga', bandeira: 'bandeira', final: 'final', emissor: 'emissor', anuidade: 'anuidade', categoria_id: 'categoria', categoria_nova: 'categoria nova', conta_id: 'conta', cartao_id: 'cartão', inicio: 'início', fim: 'fim',
+  valor_max: 'máximo', dia: 'dia', limite: 'limite', dia_fechamento: 'fechamento', dia_vencimento: 'vencimento', conta_pagamento_id: 'conta que paga', bandeira: 'bandeira', final: 'final', emissor: 'emissor', anuidade: 'anuidade', faturas: 'faturas', categoria_id: 'categoria', categoria_nova: 'categoria nova', conta_id: 'conta', cartao_id: 'cartão', inicio: 'início', fim: 'fim',
 }
 
 function diferencas(a: object, b: object) {
@@ -110,7 +110,8 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
   const editarCusto = alvo === 'custo' && editar ? editar as CustoFixo : null
   const editarCartao = alvo === 'cartao' && editar ? editar as Cartao : null
   const editarAtivo = editar ? ('ativa' in editar ? editar.ativa : 'arquivado' in editar ? (editar.arquivado ? 0 : 1) : (editar as CustoFixo).ativo) : 1
-  const fk = useForm<CamposCartao>(editarCartao ? camposDeCartao(editarCartao) : { ...cartaoVazio(principal), ...(alvo === 'cartao' ? camposIniciais.current as Partial<CamposCartao> : {}) })
+  const faturasExistentes = editarCartao ? dados.faturas.filter((x) => x.cartao_id === editarCartao.id && x.competencia >= deslocarCompetencia(competenciaDe(hoje()), -1)) : []
+  const fk = useForm<CamposCartao>(editarCartao ? { ...camposDeCartao(editarCartao), faturas: faturasExistentes.map((x) => ({ competencia: x.competencia, valor: centavosParaTexto(x.valor) })) } : { ...cartaoVazio(principal), ...(alvo === 'cartao' ? camposIniciais.current as Partial<CamposCartao> : {}) })
   const fc = useForm<CamposCusto>(editarCusto ? camposDeCusto(editarCusto) : { ...custoVazio(principal), ...(alvo === 'custo' ? camposIniciais.current as Partial<CamposCusto> : {}) })
   const fr = useForm<CamposReceita>(editarReceita ? camposDeReceita(editarReceita) : { ...receitaVazia(principal), ...(alvo === 'receita' ? camposIniciais.current as Partial<CamposReceita> : {}) })
   const idConversa = useRef(conversa?.id ?? crypto.randomUUID())
@@ -292,15 +293,22 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
       } else if (alvo === 'cartao') {
         const r = validarCartao(fk.valores)
         if (!r.ok) { fk.setErros(r.erros); rolarAteErro(); toast.aviso('Faltam dados para salvar', 'Veja os campos marcados ao lado.'); return }
+        const faturas = faturasDoFormulario(fk.valores)
+        const gravarFaturas = async (cartao_id: number) => {
+          for (const x of faturas) await salvarFatura({ cartao_id, competencia: x.competencia, valor: x.valor, origem: 'IA' })
+          for (const x of faturasExistentes) if (!faturas.some((y) => y.competencia === x.competencia)) await excluirFatura(cartao_id, x.competencia)
+        }
         if (editarCartao) {
           await atualizarCartao(editarCartao.id, r.valor)
+          await gravarFaturas(editarCartao.id)
           await marcarConcluida(r.valor.nome, editarCartao.id)
           concluir(`${r.valor.nome} atualizado.`)
           return
         }
         const id = await criarCartao({ ...r.valor, origem: 'IA' })
+        if (id) await gravarFaturas(id)
         await marcarConcluida(r.valor.nome, id ?? null)
-        concluir(`Cartão ${r.valor.nome} cadastrado.`)
+        concluir(`Cartão ${r.valor.nome} cadastrado${faturas.length ? ` com ${faturas.length} ${faturas.length === 1 ? 'fatura' : 'faturas'}` : ''}.`)
       } else if (alvo === 'custo') {
         const r = validarCusto(fc.valores)
         if (!r.ok) { fc.setErros(r.erros); rolarAteErro(); toast.aviso('Faltam dados para salvar', 'Veja os campos marcados ao lado.'); return }
@@ -355,10 +363,12 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
       const k = fk.valores
       const limite = paraCentavos(k.limite)
       const conta = dados.contas.find((x) => String(x.id) === k.conta_pagamento_id)?.nome
+      const fat = faturasDoFormulario(k)
+      const emAberto = fat.reduce((t, x) => t + x.valor, 0)
       return [
-        { rotulo: 'Limite', valor: limite != null && k.limite ? <Dinheiro valor={limite} /> : null, sub: k.bandeira || null },
+        { rotulo: 'Limite', valor: limite != null && k.limite ? <Dinheiro valor={limite} /> : null, sub: limite && fat.length ? `livre ${formatarBRL(limite - emAberto)}` : k.bandeira || null },
+        { rotulo: 'Faturas', valor: fat.length ? <Dinheiro valor={emAberto} /> : null, sub: fat.length ? `${fat.length} ${fat.length === 1 ? 'mês' : 'meses'} · próxima ${rotuloCompetencia(fat[0].competencia).toLowerCase()}` : null },
         { rotulo: 'Fecha / vence', valor: k.dia_fechamento || k.dia_vencimento ? <span className="destaque-texto">dia {k.dia_fechamento || '?'} · dia {k.dia_vencimento || '?'}</span> : null, sub: conta ? `paga pela ${conta}` : null },
-        { rotulo: 'Cartão', valor: k.final ? <span className="destaque-texto">•••• {k.final}</span> : k.emissor ? <span className="destaque-texto">{k.emissor}</span> : null, sub: k.emissor && k.final ? k.emissor : null },
       ]
     }
     if (alvo === 'custo') {

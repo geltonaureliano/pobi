@@ -4,17 +4,25 @@ import type { Cartao, NovoCartao } from './model'
 export interface CamposCartao {
   nome: string; limite: string; dia_fechamento: string; dia_vencimento: string; conta_pagamento_id: string
   bandeira: string; final: string; emissor: string; anuidade: string; observacao: string
+  /** Faturas conhecidas (mês de vencimento AAAA-MM e valor em texto "1.234,56"). */
+  faturas: { competencia: string; valor: string }[]
 }
 
 export const cartaoVazio = (conta = ''): CamposCartao => ({
-  nome: '', limite: '', dia_fechamento: '', dia_vencimento: '', conta_pagamento_id: conta, bandeira: '', final: '', emissor: '', anuidade: '', observacao: '',
+  nome: '', limite: '', dia_fechamento: '', dia_vencimento: '', conta_pagamento_id: conta, bandeira: '', final: '', emissor: '', anuidade: '', observacao: '', faturas: [],
 })
 
 export const camposDeCartao = (k: Cartao): CamposCartao => ({
   nome: k.nome, limite: centavosParaTexto(k.limite), dia_fechamento: String(k.dia_fechamento), dia_vencimento: String(k.dia_vencimento),
   conta_pagamento_id: k.conta_pagamento_id ? String(k.conta_pagamento_id) : '', bandeira: k.bandeira ?? '', final: k.final ?? '',
-  emissor: k.emissor ?? '', anuidade: centavosParaTexto(k.anuidade), observacao: k.observacao ?? '',
+  emissor: k.emissor ?? '', anuidade: centavosParaTexto(k.anuidade), observacao: k.observacao ?? '', faturas: [],
 })
+
+/** Faturas válidas do formulário, em centavos. */
+export const faturasDoFormulario = (f: CamposCartao) =>
+  f.faturas
+    .map((x) => ({ competencia: x.competencia, valor: paraCentavos(x.valor) }))
+    .filter((x): x is { competencia: string; valor: number } => /^\d{4}-\d{2}$/.test(x.competencia) && x.valor != null && x.valor >= 0)
 
 const dia = (v: string) => (/^\d+$/.test(v) && Number(v) >= 1 && Number(v) <= 31 ? Number(v) : null)
 

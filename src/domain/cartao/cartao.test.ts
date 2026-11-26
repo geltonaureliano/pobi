@@ -35,3 +35,22 @@ describe('pagamento de fatura', () => {
     expect(totaisDaCompetencia([...compras, pg], '2026-11').despesas).toBe(5000)
   })
 })
+
+import { fechamentoDaFatura } from './rules'
+describe('fatura informada (app do banco)', () => {
+  const k = { id: 1, nome: 'Itaú', limite: 1832100, dia_fechamento: 15, dia_vencimento: 18, conta_pagamento_id: 1, arquivado: 0 as const, bandeira: null, final: null, emissor: null, anuidade: null, observacao: null, origem: 'IA' as const }
+  const inf = (competencia: string, valor: number) => ({ id: 0, cartao_id: 1, competencia, valor, observacao: null, origem: 'IA' as const })
+  const informadas = [inf('2026-12', 1012589), inf('2027-01', 128129), inf('2027-02', 99462)]
+  it('vale como total e entra no limite em aberto', () => {
+    expect(resumoDaFatura(k, [], '2026-12', informadas)).toMatchObject({ total: 1012589, informado: 1012589, compras: 0, situacao: 'aberta' })
+    expect(emAbertoNoCartao(k, [], informadas)).toBe(1012589 + 128129 + 99462)
+  })
+  it('pagamento abate a fatura informada', () => {
+    const pg = l({ valor: 1012589, data: '2026-12-18', categoria_id: null, fatura_ref: marcaDePagamento(1, '2026-12') })
+    expect(resumoDaFatura(k, [pg], '2026-12', informadas).situacao).toBe('paga')
+  })
+  it('fechamento da fatura', () => {
+    expect(fechamentoDaFatura(k, '2026-12')).toBe('2026-12-15')
+    expect(fechamentoDaFatura({ dia_fechamento: 28, dia_vencimento: 5 }, '2026-12')).toBe('2026-11-28')
+  })
+})

@@ -1,5 +1,5 @@
 import { banco } from '../../db/client'
-import type { Cartao, NovoCartao } from './model'
+import type { Cartao, FaturaInformada, NovoCartao } from './model'
 
 export async function listarCartoes(): Promise<Cartao[]> {
   return (await banco()).select('SELECT * FROM cartoes WHERE arquivado = 0 ORDER BY nome')
@@ -37,4 +37,21 @@ export async function excluirCartao(id: number) {
   if (n > 0) { await db.execute('UPDATE cartoes SET arquivado = 1 WHERE id = $1', [id]); return 'arquivado' as const }
   await db.execute('DELETE FROM cartoes WHERE id = $1', [id])
   return 'excluido' as const
+}
+
+export async function listarFaturas(): Promise<FaturaInformada[]> {
+  return (await banco()).select('SELECT * FROM faturas ORDER BY cartao_id, competencia')
+}
+
+/** Grava (ou troca) o valor informado de uma fatura. */
+export async function salvarFatura(f: { cartao_id: number; competencia: string; valor: number; observacao?: string | null; origem?: 'MANUAL' | 'IA' }) {
+  await (await banco()).execute(
+    `INSERT INTO faturas (cartao_id, competencia, valor, observacao, origem) VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (cartao_id, competencia) DO UPDATE SET valor = excluded.valor, observacao = excluded.observacao`,
+    [f.cartao_id, f.competencia, f.valor, f.observacao ?? null, f.origem ?? 'MANUAL'],
+  )
+}
+
+export async function excluirFatura(cartao_id: number, competencia: string) {
+  await (await banco()).execute('DELETE FROM faturas WHERE cartao_id = $1 AND competencia = $2', [cartao_id, competencia])
 }

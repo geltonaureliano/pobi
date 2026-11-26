@@ -4,8 +4,8 @@ import type { Categoria } from '../domain/categoria/model'
 import { listarContas } from '../domain/conta/repository'
 import type { ContaComSaldo } from '../domain/conta/model'
 import { comSaldos } from '../domain/conta/rules'
-import { listarCartoesTodos } from '../domain/cartao/repository'
-import type { Cartao } from '../domain/cartao/model'
+import { listarCartoesTodos, listarFaturas } from '../domain/cartao/repository'
+import type { Cartao, FaturaInformada } from '../domain/cartao/model'
 import { todosLancamentos } from '../domain/lancamento/repository'
 import type { LancamentoDetalhado } from '../domain/lancamento/model'
 import { listarDividas, listarParcelas } from '../domain/divida/repository'
@@ -24,6 +24,8 @@ export interface Dados {
   parcelas: Parcela[]
   receitas: Receita[]
   custosFixos: CustoFixo[]
+  /** Valores de fatura informados (app do banco). */
+  faturas: FaturaInformada[]
 }
 
 /** Carrega tudo de uma vez. Para uso pessoal (milhares de lançamentos) isso é instantâneo no SQLite. */
@@ -32,11 +34,11 @@ export function useDados() {
   const [erro, setErro] = useState<string | null>(null)
   const recarregar = useCallback(async () => {
     try {
-      const [lancamentos, contas, categorias, cartoes, dividas, parcelas, receitas, custosFixos] = await Promise.all([
+      const [lancamentos, contas, categorias, cartoes, dividas, parcelas, receitas, custosFixos, faturas] = await Promise.all([
         todosLancamentos(), listarContas(), listarCategorias(), listarCartoesTodos(), listarDividas(), listarParcelas(),
-        listarReceitas(), listarCustosFixos(),
+        listarReceitas(), listarCustosFixos(), listarFaturas(),
       ])
-      setDados({ lancamentos, contas: comSaldos(contas, lancamentos), categorias, cartoes, dividas, parcelas, receitas, custosFixos })
+      setDados({ lancamentos, contas: comSaldos(contas, lancamentos), categorias, cartoes, dividas, parcelas, receitas, custosFixos, faturas })
     } catch (e) {
       setErro(String(e))
     }

@@ -70,7 +70,11 @@ const CAMPOS: Record<AlvoAssistente, string> = {
   "dia_vencimento": number,       // dia em que a fatura vence (1 a 31)
   "conta_pagamento": string,      // nome exato de uma conta existente que paga a fatura (ou null)
   "anuidade": number,             // valor mensal da anuidade/tarifa, em reais (0 se isenta)
-  "observacao": string            // programa de pontos, cashback, seguro, isenção de anuidade…
+  "faturas": [{"mes": "AAAA-MM", "valor": number}],
+                                  // faturas informadas: atual e próximas, pelo MÊS DE VENCIMENTO, valor em reais.
+                                  // Ex.: "fatura de dezembro 10.125,89" e "jan 1.281,29" → [{"mes":"2026-12","valor":10125.89},{"mes":"2027-01","valor":1281.29}]
+                                  // Envie a lista completa e atualizada a cada resposta. Não coloque faturas na observação.
+  "observacao": string            // programa de pontos, cashback, seguro, isenção de anuidade… (sem faturas)
 }`,
 }
 
@@ -291,7 +295,8 @@ export function aplicarNoCusto(f: CamposCusto, r: Record<string, unknown>, ctx: 
 
 export const contextoDoCartao = (contas: { nome: string }[]) =>
   `Contas existentes (para "conta_pagamento"): ${contas.map((c) => c.nome).join(', ') || '(nenhuma)'}.
-Se a fatura mostrar fechamento e vencimento, use esses dias. Se só houver o vencimento, deixe o fechamento null e peça em "pendencias".
+Se a fatura mostrar fechamento e vencimento, use esses dias.
+Valores de faturas (atual e próximas, inclusive parcelas futuras que o app do banco mostra) vão em "faturas", pelo mês de vencimento. Se só houver o vencimento, deixe o fechamento null e peça em "pendencias".
 Nunca repita números completos de cartão, CVV ou validade, nem na resposta.`
 
 const BANDEIRAS_IA = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Outra']
@@ -317,5 +322,20 @@ export function aplicarNoCartao(f: CamposCartao, r: Record<string, unknown>, con
   const anuidade = num(r.anuidade)
   if (anuidade != null && anuidade >= 0) novo.anuidade = centavosParaTexto(Math.round(anuidade * 100))
   set('observacao', str(r.observacao))
+  if (Array.isArray(r.faturas)) {
+    const lista = r.faturas
+      .map((x) => {
+        const o = (x ?? {}) as Record<string, unknown>
+        const mes = typeof o.mes === 'string' ? o.mes.slice(0, 7) : typeof o.competencia === 'string' ? o.competencia.slice(0, 7) : ''
+        const v = num(o.valor)
+        return /^\d{4}-(0[1-9]|1[0-2])$/.test(mes) && v != null && v >= 0 ? { competencia: mes, valor: centavosParaTexto(Math.round(v * 100)) } : null
+      })
+      .filter((x): x is { competencia: string; valor: string } => x != null)
+    if (lista.length) {
+      const porMes = new Map(novo.faturas.map((x) => [x.competencia, x]))
+      lista.forEach((x) => porMes.set(x.competencia, x))
+      novo.faturas = [...porMes.values()].sort((a, b) => a.competencia.localeCompare(b.competencia))
+    }
+  }
   return novo
 }

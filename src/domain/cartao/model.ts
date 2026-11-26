@@ -20,3 +20,13 @@ export type NovoCartao = Omit<Cartao, 'id' | 'arquivado' | 'origem' | 'bandeira'
   Partial<Pick<Cartao, 'bandeira' | 'final' | 'emissor' | 'anuidade' | 'observacao' | 'origem'>>
 
 export const BANDEIRAS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Outra'].map((b) => ({ id: b, nome: b }))
+
+/** Valor informado de uma fatura (mês de vencimento), vindo do app do banco. */
+export interface FaturaInformada {
+  id: number
+  cartao_id: number
+  competencia: string
+  valor: Centavos
+  observacao: string | null
+  origem: 'MANUAL' | 'IA'
+}

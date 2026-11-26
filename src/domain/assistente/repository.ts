@@ -47,6 +47,7 @@ function simular(alvo: AlvoAssistente, t: string, anexos: AnexoLocal[]): Promise
           dia_fechamento: Number(t.match(/fecha\D*(\d{1,2})/i)?.[1] ?? 0) || null,
           dia_vencimento: Number(t.match(/vence\D*(\d{1,2})/i)?.[1] ?? 0) || null,
           anuidade: /sem anuidade|isent/i.test(t) ? 0 : null,
+          faturas: faturasDoTexto(t),
         },
       }
     : alvo === 'custo'
@@ -154,4 +155,17 @@ export async function buscarConversaDoItem(alvo: AlvoAssistente, item_id: number
   const [l] = await (await banco()).select<LinhaConversa>(
     'SELECT * FROM conversas_ia WHERE alvo = $1 AND item_id = $2 ORDER BY atualizado_em DESC LIMIT 1', [alvo, item_id])
   return l ? daLinha(l) : null
+}
+
+/** Simulação: "dez 10.125,89", "Jan = 1.281,29" → faturas por mês de vencimento (a partir do mês atual). */
+function faturasDoTexto(t: string) {
+  const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+  const hoje = new Date()
+  const out: { mes: string; valor: number }[] = []
+  for (const m of t.matchAll(/\b(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-zç]*\b[^\d\n]{0,12}(\d{1,3}(?:\.\d{3})*,\d{2})/gi)) {
+    const i = MESES.indexOf(m[1].toLowerCase())
+    const ano = hoje.getFullYear() + (i < hoje.getMonth() ? 1 : 0)
+    out.push({ mes: `${ano}-${String(i + 1).padStart(2, '0')}`, valor: Number(m[2].replace(/\./g, '').replace(',', '.')) })
+  }
+  return out.length ? out : null
 }

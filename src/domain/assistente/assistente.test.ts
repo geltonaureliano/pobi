@@ -146,3 +146,11 @@ describe('cartão com IA', () => {
     expect(r.ok).toBe(false)
   })
 })
+
+describe('faturas pelo chat', () => {
+  it('vira lista por mês de vencimento, ordenada e sem duplicar', () => {
+    const base = { ...cartaoVazio(), faturas: [{ competencia: '2027-01', valor: '1.000,00' }] }
+    const r = aplicarNoCartao(base, { faturas: [{ mes: '2026-12', valor: 10125.89 }, { mes: '2027-01', valor: '1.281,29' }, { mes: 'jan', valor: 1 }] }, [])
+    expect(r.faturas).toEqual([{ competencia: '2026-12', valor: '10.125,89' }, { competencia: '2027-01', valor: '1.281,29' }])
+  })
+})

@@ -9,3 +9,6 @@
 - O pagamento da fatura **não entra** nas despesas do mês nem nos totais: é tratado como transferência para o cartão. Ele só reduz o saldo da conta.
 - Limite disponível = limite − soma do que está em aberto em todas as faturas.
 - Cartão com compras é arquivado em vez de excluído.
+- **Fatura informada** (`faturas`): o valor de uma fatura, pelo mês de vencimento, como aparece no app do banco (útil para parcelas antigas e para começar a usar o Pobi com faturas já em andamento). Quando existe, é o total da fatura; sem ela, o total é a soma das compras lançadas. Pagamentos abatem do mesmo jeito.
+- Em aberto no cartão (limite usado) soma as faturas não pagas, informadas ou calculadas.
+- A página do cartão mostra 12 meses de faturas (3 antes da atual e 8 depois), o detalhe da fatura escolhida e as próximas faturas. O assistente de IA entende faturas ("dez 10.125,89, jan 1.281,29…") e grava cada uma ao confirmar.
