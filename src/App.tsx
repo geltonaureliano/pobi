@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Icones } from './ui/icones'
 import { useDados } from './ui/useDados'
+import { BarraTitulo } from './ui/components/BarraTitulo'
 import { Painel } from './pages/Painel'
 import { Lancamentos } from './pages/Lancamentos'
 import { Contas } from './pages/Contas'
@@ -48,7 +49,9 @@ export default function App() {
   }
 
   return (
-    <div className="shell">
+    <div className="janela">
+      <BarraTitulo recarregar={recarregar} />
+      <div className="shell">
       <aside className="sidebar">
         <div className="marca"><Icones.logo />POBI</div>
         {MENU.map((g) => (
@@ -67,6 +70,7 @@ export default function App() {
         <div className="sidebar-rodape"><div className="avatar">G</div><div>Gelton<small>banco local</small></div></div>
       </aside>
       <main className="conteudo"><div className="painel" key={pagina}>{corpo}</div></main>
+      </div>
     </div>
   )
 }

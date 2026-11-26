@@ -34,14 +34,32 @@ body {
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 
-.shell { display: grid; grid-template-columns: 232px 1fr; height: 100%; }
+.janela { display: flex; flex-direction: column; height: 100%; }
+
+/* Barra de título customizada (os botões do macOS ficam sobrepostos à esquerda) */
+.barra-titulo {
+  flex: none; height: 38px; display: flex; align-items: center; justify-content: flex-end; padding: 0 12px;
+  background: var(--escuro); color: #8f8d85; position: relative;
+  border-bottom: 1px solid var(--escuro-2);
+  user-select: none; -webkit-user-select: none; cursor: default;
+}
+.barra-titulo-acoes { display: flex; align-items: center; gap: 10px; }
+.barra-titulo-versao { font-size: 11px; letter-spacing: .06em; color: #5f5d57; }
+.barra-titulo-botao {
+  width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 7px;
+  background: none; color: #8f8d85; transition: background .15s, color .15s;
+}
+.barra-titulo-botao:hover { background: var(--escuro-2); color: var(--laranja); }
+.barra-titulo-botao svg { width: 14px; height: 14px; }
+.barra-titulo-botao.girando svg { animation: girar .5s ease; }
+@keyframes girar { to { transform: rotate(360deg); } }
+
+.shell { display: grid; grid-template-columns: 232px 1fr; flex: 1; min-height: 0; }
 
 .sidebar {
   background: var(--escuro); color: var(--branco);
-  display: flex; flex-direction: column; padding: 40px 18px 20px;
-  -webkit-app-region: drag;
+  display: flex; flex-direction: column; padding: 18px 18px 20px;
 }
-.sidebar a, .sidebar button { -webkit-app-region: no-drag; }
 .marca { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 15px; letter-spacing: .06em; padding: 0 8px 28px; }
 .marca-logo { width: 26px; height: 26px; }
 .grupo { color: #8f8d85; font-size: 12px; padding: 18px 8px 10px; }
