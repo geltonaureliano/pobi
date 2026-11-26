@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { lerAjuste, salvarAjuste } from '../../domain/analise/repository'
-import type { ContaComSaldo } from '../../domain/conta/model'
+import type { Dados } from '../useDados'
+import { planoDoMes, saldoDoMes } from '../../domain/planejamento/rules'
+import { competenciaDe, hoje } from '../../shared/data'
 import { formatarBRL, formatarCompacto } from '../../shared/dinheiro'
 import { toast } from '../toast'
 
@@ -9,8 +11,8 @@ const NOME_PADRAO = 'Gelton'
 const iniciais = (nome: string) =>
   nome.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?'
 
-/** Rodapé da sidebar: clique no nome para editar. Mostra o saldo somado das contas ativas. */
-export function Perfil({ contas }: { contas: ContaComSaldo[] | undefined }) {
+/** Rodapé da sidebar: clique no nome para editar. Mostra o saldo do mês até hoje (receitas − despesas). */
+export function Perfil({ dados }: { dados: Dados | null }) {
   const [nome, setNome] = useState(NOME_PADRAO)
   const [editando, setEditando] = useState(false)
   const [rascunho, setRascunho] = useState('')
@@ -29,10 +31,11 @@ export function Perfil({ contas }: { contas: ContaComSaldo[] | undefined }) {
     toast.sucesso('Nome atualizado', novo)
   }
 
-  const ativas = contas?.filter((c) => !c.arquivada) ?? []
-  const saldo = ativas.reduce((s, c) => s + c.saldo, 0)
-  const titulo = contas ? `Saldo de ${ativas.length} ${ativas.length === 1 ? "conta ativa" : "contas ativas"}: ${formatarBRL(saldo)}` : undefined
-  const subtitulo = contas ? `saldo ${formatarCompacto(saldo)}` : '…'
+  const plano = useMemo(() => (dados ? planoDoMes(dados, competenciaDe(hoje())) : null), [dados])
+  const sd = plano ? saldoDoMes(plano, hoje()) : null
+  const saldo = sd?.ateHoje ?? 0
+  const titulo = sd ? `Saldo do mês até hoje (receitas − despesas): ${formatarBRL(sd.ateHoje)} · fecha o mês em ${formatarBRL(sd.fechamento)}` : undefined
+  const subtitulo = sd ? `saldo ${formatarCompacto(sd.ateHoje)} · mês ${formatarCompacto(sd.fechamento)}` : '…'
 
   return (
     <div className={`sidebar-rodape perfil ${editando ? 'editando' : ''}`} onClick={editando ? undefined : abrir} title={editando ? undefined : 'Clique para alterar o nome'}>

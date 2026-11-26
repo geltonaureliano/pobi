@@ -5,7 +5,10 @@ import type { ContaComSaldo } from '../conta/model'
 import { saldoTotal } from '../conta/rules'
 import type { CustoFixo } from '../custo-fixo/model'
 import { situacaoDosCustos } from '../custo-fixo/rules'
-import type { Parcela } from '../divida/model'
+import type { Divida, Parcela } from '../divida/model'
+import type { Cartao, FaturaInformada } from '../cartao/model'
+import { emAbertoNoCartao, faturaDaCompra, resumoDaFatura } from '../cartao/rules'
+import { fluxoDoMes, planoDoMes, saldoDoMes } from '../planejamento/rules'
 import { parcelasAtrasadas, proximasParcelas, saldoDevedor } from '../divida/rules'
 import type { LancamentoDetalhado } from '../lancamento/model'
 import { confirmado, despesaPorCategoria, totaisDaCompetencia } from '../lancamento/rules'
@@ -28,6 +31,10 @@ export interface EntradaResumo {
   receitasMes?: AjusteReceitaMes[]
   custosFixos: CustoFixo[]
   parcelas: Parcela[]
+  /** Para o plano do mês (opcional nos testes antigos). */
+  cartoes?: Cartao[]
+  faturas?: FaturaInformada[]
+  dividas?: Divida[]
 }
 
 /** Agrega os dados do mês e dos 2 anteriores. Valores em reais (não centavos) para a IA. */
@@ -42,8 +49,36 @@ export function montarResumo(e: EntradaResumo): ResumoFinanceiro {
   em30.setUTCDate(em30.getUTCDate() + 30)
 
   const rel = relatorioMensal(e)
+  const ep = { ...e, cartoes: e.cartoes ?? [], faturas: e.faturas ?? [], dividas: e.dividas ?? [] }
+  const pl = planoDoMes(ep, c)
+  const fl = fluxoDoMes(pl, 0)
+  const sd = saldoDoMes(pl, e.hoje)
   const arred = (v: number | null) => (v == null ? null : Math.round(v * 1000) / 1000)
+  const plano = {
+    receitas: reais(pl.entradas), despesas: reais(pl.saidas), saldoDoMes: reais(pl.livre), saldoAteHoje: reais(sd.ateHoje),
+    comprometimento: arred(pl.comprometimento), menorSaldoNoMes: { valor: reais(fl.menor.valor), data: fl.menor.data },
+    fontes: pl.porFonte.map((f) => ({ nome: f.nome, valor: reais(f.valor), regra: f.regra })),
+    despesasPorTipo: { custosFixos: reais(pl.custos), faturas: reais(pl.faturas), parcelas: reais(pl.parcelas) },
+    despesasPorCategoria: pl.porCategoria.map((k) => ({ nome: k.nome, valor: reais(k.valor) })),
+    proximosMeses: [1, 2, 3, 4, 5, 6].map((d) => {
+      const x = planoDoMes(ep, deslocarCompetencia(c, d))
+      return { competencia: x.competencia, receitas: reais(x.entradas), despesas: reais(x.saidas), saldo: reais(x.livre) }
+    }),
+    cartoes: ep.cartoes.filter((k) => !k.arquivado).map((k) => {
+      const f0 = faturaDaCompra(k, e.hoje)
+      return {
+        nome: k.nome, limite: reais(k.limite), emAberto: reais(emAbertoNoCartao(k, e.lancamentos, ep.faturas)),
+        proximasFaturas: [0, 1, 2, 3, 4, 5].map((d) => resumoDaFatura(k, e.lancamentos, deslocarCompetencia(f0, d), ep.faturas)).filter((f) => f.total > 0).map((f) => ({ mes: f.fatura, valor: reais(f.total) })),
+      }
+    }),
+    dividas: ep.dividas.filter((d) => d.status !== 'QUITADA').map((d) => {
+      const ps = e.parcelas.filter((p) => p.divida_id === d.id)
+      const abertas = ps.filter((p) => !p.pago_em)
+      return { nome: d.nome, saldoDevedor: reais(saldoDevedor(ps)), parcela: abertas[0] ? reais(abertas[0].valor) : null, restantes: abertas.length, taxaMensal: d.taxa_mensal }
+    }),
+  }
   return {
+    plano,
     competencia: c,
     moeda: 'BRL',
     saude: {
@@ -94,8 +129,16 @@ export function montarResumo(e: EntradaResumo): ResumoFinanceiro {
 export function montarPrompt(r: ResumoFinanceiro): string {
   return `Você é um analista de finanças pessoais. Analise o resumo abaixo (valores em reais, mês ${r.competencia}).
 
+Como o app conta o mês (use isto como base principal, em "plano"):
+- Receitas = tudo que está cadastrado em Receitas (fixas, variáveis pela média, por hora pelos dias úteis, avulsas só no mês delas).
+- Despesas = custos fixos (custo de vida) + faturas de cartão que vencem no mês + parcelas de dívidas do mês.
+- Saldo do mês = receitas − despesas. "saldoAteHoje" considera só o que já caiu/venceu até hoje; "menorSaldoNoMes" é o ponto mais baixo do mês.
+- "proximosMeses" é a projeção dos 6 meses seguintes pela mesma regra; "cartoes" traz as próximas faturas; "dividas" o saldo e o ritmo de pagamento.
+- Os campos fora de "plano" (meses, categorias, maioresGastos) vêm de lançamentos registrados e podem estar vazios.
+
 Regras:
 - Use somente os números do resumo. Não invente valores nem suponha juros.
+- Procure: meses que vão ficar no vermelho, concentração de renda numa fonte, faturas que pesam demais, dívidas caras (taxa alta) para quitar antes, folga para reserva.
 - Cada insight precisa citar em "evidencia" o número do resumo que o sustenta.
 - Categorias com "essencial": true não devem ser tratadas como corte fácil.
 - Se faltar informação para concluir algo, coloque em "pontosCegos".

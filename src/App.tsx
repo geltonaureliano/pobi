@@ -71,7 +71,7 @@ export default function App() {
             })}
           </div>
         ))}
-        <Perfil contas={dados?.contas} />
+        <Perfil dados={dados} />
       </aside>
       <main className="conteudo"><div className="painel" key={pagina}>{corpo}</div></main>
       </div>

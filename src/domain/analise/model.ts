@@ -15,6 +15,17 @@ export interface ResumoFinanceiro {
   dividas: { saldoDevedor: number; parcelasAtrasadas: number; proximos30dias: number }
   maioresGastos: { descricao: string; categoria: string; valor: number }[]
   saude: { score: number; faixa: string; comprometimento: number | null; taxaPoupanca: number | null; reservaEmMeses: number | null; essenciais: number; naoEssenciais: number }
+  /** Mês pela regra do app: receitas previstas × (custos fixos + faturas + parcelas). Valores em reais. */
+  plano?: {
+    receitas: number; despesas: number; saldoDoMes: number; saldoAteHoje: number; comprometimento: number | null
+    menorSaldoNoMes: { valor: number; data: string }
+    fontes: { nome: string; valor: number; regra: string }[]
+    despesasPorTipo: { custosFixos: number; faturas: number; parcelas: number }
+    despesasPorCategoria: { nome: string; valor: number }[]
+    proximosMeses: { competencia: string; receitas: number; despesas: number; saldo: number }[]
+    cartoes: { nome: string; limite: number; emAberto: number; proximasFaturas: { mes: string; valor: number }[] }[]
+    dividas: { nome: string; saldoDevedor: number; parcela: number | null; restantes: number; taxaMensal: number | null }[]
+  }
 }
 
 export type Severidade = 'atencao' | 'oportunidade' | 'positivo'
