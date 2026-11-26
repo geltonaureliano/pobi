@@ -1,0 +1,344 @@
+import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
+import { hoje, competenciaDe } from '../../shared/data'
+import { paraCentavos } from '../../shared/dinheiro'
+import type { Motor } from '../../domain/analise/model'
+import { lerAjuste } from '../../domain/analise/repository'
+import type { AlvoAssistente, AnexoLocal, Confianca, MensagemChat } from '../../domain/assistente/model'
+import { aplicarNaDivida, aplicarNaReceita, interpretarAssistente, montarPromptAssistente, rascunhoDosCampos, tamanhoLegivel } from '../../domain/assistente/rules'
+import { executarAssistente, lerArquivo } from '../../domain/assistente/repository'
+import { camposDividaVazios, totalDoFormulario, validarDivida, type CamposDivida } from '../../domain/divida/form'
+import { criarDivida } from '../../domain/divida/repository'
+import { criarReceita } from '../../domain/receita/repository'
+import { validarRecorrente, type CamposRecorrente } from '../../shared/recorrente'
+import { emTauri } from '../../db/client'
+import { useForm } from '../../ui/useForm'
+import { Dinheiro } from '../../ui/components/Dinheiro'
+import { Simbolo } from '../../ui/components/Marca'
+import type { Dados } from '../../ui/useDados'
+import { CamposDividaForm, CamposReceitaForm } from './formularios'
+
+const MAX_ARQUIVO = 20 * 1024 * 1024
+
+/** Mesmo nome que o app nativo dá ao arquivo na pasta temporária (ver ai.rs). */
+const nomeNaPasta = (nome: string, i: number) => {
+  const base = [...nome].map((c) => (/[\p{L}\p{N}._-]/u.test(c) ? c : '_')).join('').replace(/^\.+/, '')
+  return base ? `${String(i + 1).padStart(2, '0')}-${base}` : `anexo-${i}`
+}
+
+const SUGESTOES: Record<AlvoAssistente, string[]> = {
+  divida: [
+    'Financiamento do carro, 48x de R$ 1.290,00, já paguei 12, juros de 1,49% ao mês',
+    'Empréstimo de R$ 10.000 no banco, 24 parcelas, primeira vence dia 10',
+    'Anexei o contrato. Me diz quanto vou pagar de juros no total',
+  ],
+  receita: [
+    'Salário de R$ 8.500 líquido, cai todo dia 5',
+    'Freela que varia entre R$ 2.000 e R$ 4.500 por mês, recebo dia 15',
+    'Anexei meus holerites dos últimos meses, calcula a média',
+  ],
+}
+
+const ETAPAS_ARQUIVO = ['Lendo os arquivos…', 'Entendendo o documento…', 'Extraindo valores e datas…', 'Conferindo os cálculos…', 'Montando o resumo…']
+const ETAPAS_TEXTO = ['Entendendo o que você escreveu…', 'Organizando os dados…', 'Montando o resumo…']
+
+const receitaVazia = (conta_id: string): CamposRecorrente => ({
+  nome: '', valor: '', dia: '', inicio: `${competenciaDe(hoje())}-01`, fim: '', conta_id, cartao_id: '', categoria_id: '', observacao: '',
+  tipo_valor: 'FIXA', valor_min: '', valor_max: '', fonte: '',
+})
+
+const ROTULOS: Record<string, string> = {
+  nome: 'nome', tipo: 'tipo', credor: 'credor', contratado: 'valor contratado', valor_parcela: 'parcela', total: 'total', parcelas: 'nº de parcelas',
+  parcelas_pagas: 'parcelas pagas', primeiro: '1º vencimento', data_contratacao: 'data do contrato', taxa: 'juros a.m.', taxa_anual: 'juros a.a.',
+  cet: 'CET', sistema: 'sistema', observacao: 'observações', fonte: 'fonte', tipo_valor: 'fixo/variável', valor: 'valor', valor_min: 'mínimo',
+  valor_max: 'máximo', dia: 'dia', inicio: 'início', fim: 'fim',
+}
+
+function diferencas(a: object, b: object) {
+  const x = a as Record<string, unknown>, y = b as Record<string, unknown>
+  return Object.keys(y).filter((k) => x[k] !== y[k] && k !== 'modo')
+}
+
+export function Assistente({ alvo, dados, voltar, concluir }: {
+  alvo: AlvoAssistente; dados: Dados; voltar: () => void; concluir: (aviso: string) => void
+}) {
+  const principal = String(dados.contas.find((x) => x.principal)?.id ?? '')
+  const catDividas = dados.categorias.find((k) => k.nome === 'Dívidas')?.id
+  const fd = useForm<CamposDivida>({ ...camposDividaVazios(catDividas ? String(catDividas) : ''), primeiro: '' })
+  const fr = useForm<CamposRecorrente>(receitaVazia(principal))
+
+  const [motor, setMotor] = useState<Motor>('claude')
+  const [mensagens, setMensagens] = useState<MensagemChat[]>([])
+  const [arquivos, setArquivos] = useState<AnexoLocal[]>([])
+  const [pendentes, setPendentes] = useState<AnexoLocal[]>([])
+  const [texto, setTexto] = useState('')
+  const [rodando, setRodando] = useState(false)
+  const [etapa, setEtapa] = useState(0)
+  const [arrastando, setArrastando] = useState(false)
+  const [meta, setMeta] = useState<{ resumo: string | null; confianca: Confianca | null; pendencias: string[] } | null>(null)
+  const [destacar, setDestacar] = useState<string[]>([])
+  const [salvando, setSalvando] = useState(false)
+  const [aviso, setAviso] = useState<string | null>(null)
+  const lista = useRef<HTMLDivElement>(null)
+  const seletor = useRef<HTMLInputElement>(null)
+  const caixa = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => { lerAjuste('motor').then((m) => m && setMotor(m as Motor)).catch(() => {}) }, [])
+  useEffect(() => { lista.current?.scrollTo({ top: lista.current.scrollHeight, behavior: 'smooth' }) }, [mensagens, rodando])
+  useEffect(() => {
+    if (!rodando) return
+    setEtapa(0)
+    const t = setInterval(() => setEtapa((e) => e + 1), 2600)
+    return () => clearInterval(t)
+  }, [rodando])
+  useEffect(() => {
+    if (!destacar.length) return
+    const t = setTimeout(() => setDestacar([]), 2400)
+    return () => clearTimeout(t)
+  }, [destacar])
+  useEffect(() => {
+    const el = caixa.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 180)}px`
+  }, [texto])
+
+  async function anexar(lista: FileList | File[]) {
+    setAviso(null)
+    const novos: AnexoLocal[] = []
+    for (const f of Array.from(lista)) {
+      if (f.size > MAX_ARQUIVO) { setAviso(`${f.name} passa de 20 MB e ficou de fora.`); continue }
+      try { novos.push(await lerArquivo(f)) } catch (e) { setAviso((e as Error).message) }
+    }
+    setPendentes((p) => [...p, ...novos])
+  }
+
+  async function enviar(conteudo = texto) {
+    const t = conteudo.trim()
+    if ((!t && !pendentes.length) || rodando) return
+    const msg: MensagemChat = { id: crypto.randomUUID(), autor: 'voce', texto: t, anexos: pendentes.map((a) => ({ nome: a.nome, tamanho: a.tamanho })) }
+    const todos = [...arquivos, ...pendentes]
+    const historico = [...mensagens, msg]
+    setMensagens(historico); setArquivos(todos); setPendentes([]); setTexto(''); setRodando(true)
+    try {
+      const formAtual = alvo === 'divida' ? fd.valores : fr.valores
+      const prompt = montarPromptAssistente({
+        alvo, hoje: hoje(), historico, rascunhoAtual: rascunhoDosCampos(formAtual), arquivos: todos.map((a, i) => nomeNaPasta(a.nome, i)),
+      })
+      const r = interpretarAssistente(await executarAssistente(motor, prompt, todos, alvo, t))
+      let mudou: string[] = []
+      if (alvo === 'divida') {
+        const novo = aplicarNaDivida(fd.valores, r.rascunho)
+        mudou = diferencas(fd.valores, novo); fd.setValores(novo); fd.setErros({})
+      } else {
+        const novo = aplicarNaReceita(fr.valores, r.rascunho)
+        mudou = diferencas(fr.valores, novo); fr.setValores(novo); fr.setErros({})
+      }
+      setDestacar(mudou)
+      if (r.resumo || r.pendencias.length || r.confianca) setMeta({ resumo: r.resumo ?? meta?.resumo ?? null, confianca: r.confianca ?? meta?.confianca ?? null, pendencias: r.pendencias })
+      setMensagens((m) => [...m, { id: crypto.randomUUID(), autor: 'ia', texto: r.resposta, anexos: [], campos: mudou }])
+    } catch (e) {
+      setMensagens((m) => [...m, { id: crypto.randomUUID(), autor: 'ia', texto: e instanceof Error ? e.message : String(e), anexos: [], erro: true }])
+    } finally {
+      setRodando(false)
+      caixa.current?.focus()
+    }
+  }
+
+  function teclar(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); enviar() }
+  }
+  function soltar(e: DragEvent) {
+    e.preventDefault(); setArrastando(false)
+    if (e.dataTransfer.files.length) anexar(e.dataTransfer.files)
+  }
+
+  const rolarAteErro = () => requestAnimationFrame(() => document.querySelector('.revisao-form .com-erro')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+
+  async function confirmar() {
+    setSalvando(true)
+    try {
+      if (alvo === 'divida') {
+        const r = validarDivida(fd.valores, true)
+        if (!r.ok) { fd.setErros(r.erros); rolarAteErro(); return }
+        await criarDivida({ ...r.nova, origem: 'IA' })
+        concluir(`${r.nova.nome} cadastrada com ${r.nova.parcelas} parcelas.`)
+      } else {
+        const r = validarRecorrente(fr.valores, false)
+        if (!r.ok) { fr.setErros(r.erros); rolarAteErro(); return }
+        const v = r.valor
+        await criarReceita({ nome: v.nome, valor: v.valor, dia_recebimento: v.dia, inicio: v.inicio, fim: v.fim, conta_id: v.conta_id, categoria_id: v.categoria_id, observacao: v.observacao, tipo_valor: v.tipo_valor, valor_min: v.valor_min, valor_max: v.valor_max, fonte: v.fonte, origem: 'IA' })
+        concluir(`${v.nome} cadastrada.`)
+      }
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  const destaques = useMemo(() => {
+    if (alvo === 'divida') {
+      const v = fd.valores
+      const total = totalDoFormulario(v)
+      const n = Number(v.parcelas) || 0
+      const pagas = Number(v.parcelas_pagas) || 0
+      const parcela = v.modo === 'PARCELA' ? paraCentavos(v.valor_parcela) : total && n ? Math.round(total / n) : null
+      return [
+        { rotulo: 'Parcela', valor: parcela ? <Dinheiro valor={parcela} /> : null, sub: n ? `${n}x` : null },
+        { rotulo: 'Total a pagar', valor: total ? <Dinheiro valor={total} /> : null, sub: null },
+        { rotulo: 'Falta pagar', valor: total && n ? <Dinheiro valor={Math.max(0, total - (parcela ?? 0) * pagas)} /> : null, sub: n ? `${Math.max(0, n - pagas)} parcelas` : null },
+      ]
+    }
+    const v = fr.valores
+    const valor = paraCentavos(v.valor)
+    const min = paraCentavos(v.valor_min ?? ''), max = paraCentavos(v.valor_max ?? '')
+    return [
+      { rotulo: v.tipo_valor === 'VARIAVEL' ? 'Média por mês' : 'Por mês', valor: valor ? <Dinheiro valor={valor} /> : null, sub: v.dia ? `dia ${v.dia}` : null },
+      { rotulo: 'Faixa', valor: v.tipo_valor === 'VARIAVEL' && (min || max) ? <span className="faixa">{min ? <Dinheiro valor={min} /> : '—'} a {max ? <Dinheiro valor={max} /> : '—'}</span> : null, sub: v.tipo_valor === 'VARIAVEL' ? 'variável' : 'fixa' },
+      { rotulo: 'Por ano', valor: valor ? <Dinheiro valor={valor * 12} /> : null, sub: null },
+    ]
+  }, [alvo, fd.valores, fr.valores])
+
+  const etapas = arquivos.length ? ETAPAS_ARQUIVO : ETAPAS_TEXTO
+  const nomeItem = alvo === 'divida' ? 'dívida' : 'receita'
+  const contas = dados.contas.filter((x) => !x.arquivada)
+
+  return (
+    <div className="assistente">
+      <header className="assistente-topo">
+        <button className="botao-voltar" onClick={voltar}>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          {alvo === 'divida' ? 'Dívidas' : 'Receitas'}
+        </button>
+        <div className="assistente-titulo">
+          <h1>Nova {nomeItem} com IA</h1>
+          <span className="sutil">Conte, cole ou anexe. Você revisa tudo antes de salvar.</span>
+        </div>
+        <span className={`motor-selo ${emTauri() ? '' : 'demo'}`} title={emTauri() ? 'Roda no seu computador' : 'No navegador a IA é simulada'}>
+          <i />{emTauri() ? `${motor === 'claude' ? 'Claude Code' : 'Codex'} · local` : 'Demonstração'}
+        </span>
+      </header>
+
+      <div className="assistente-corpo">
+        <section
+          className={`chat ${arrastando ? 'arrastando' : ''}`}
+          onDragOver={(e) => { e.preventDefault(); setArrastando(true) }}
+          onDragLeave={(e) => { if (e.currentTarget === e.target) setArrastando(false) }}
+          onDrop={soltar}
+        >
+          <div className="chat-lista" ref={lista}>
+            {!mensagens.length && (
+              <div className="chat-vazio">
+                <div className="chat-vazio-icone"><Simbolo tamanho={44} /></div>
+                <h2>Como é essa {nomeItem}?</h2>
+                <p>Escreva do seu jeito ou anexe qualquer arquivo: contrato, boleto, extrato, print, PDF, planilha, foto. Eu leio, extraio os detalhes e monto o cadastro ao lado.</p>
+                <div className="chat-sugestoes">
+                  {SUGESTOES[alvo].map((s) => <button key={s} onClick={() => { setTexto(s); caixa.current?.focus() }}>{s}</button>)}
+                </div>
+              </div>
+            )}
+            {mensagens.map((m) => (
+              <div key={m.id} className={`msg ${m.autor} ${m.erro ? 'erro' : ''}`}>
+                {m.autor === 'ia' && <span className="msg-avatar"><Simbolo tamanho={18} /></span>}
+                <div className="msg-corpo">
+                  {m.anexos.length > 0 && (
+                    <div className="msg-anexos">{m.anexos.map((a) => <span key={a.nome} className="anexo-chip"><IconeArquivo nome={a.nome} />{a.nome}<small>{tamanhoLegivel(a.tamanho)}</small></span>)}</div>
+                  )}
+                  {m.texto && <div className="msg-texto">{m.texto}</div>}
+                  {m.campos && m.campos.length > 0 && (
+                    <div className="msg-campos"><IconeVisto />Preenchi: {m.campos.map((c) => ROTULOS[c] ?? c).join(', ')}</div>
+                  )}
+                  {m.erro && <button className="aba" onClick={() => { const ultima = [...mensagens].reverse().find((x) => x.autor === 'voce'); setMensagens((x) => x.filter((y) => y.id !== m.id && y.id !== ultima?.id)); if (ultima) enviar(ultima.texto) }}>tentar de novo</button>}
+                </div>
+              </div>
+            ))}
+            {rodando && (
+              <div className="msg ia">
+                <span className="msg-avatar pulsando"><Simbolo tamanho={18} /></span>
+                <div className="msg-corpo"><div className="msg-texto digitando"><span className="pontos"><i /><i /><i /></span>{etapas[Math.min(etapa, etapas.length - 1)]}</div></div>
+              </div>
+            )}
+          </div>
+
+          <div className="composer">
+            {aviso && <div className="composer-aviso">{aviso}</div>}
+            {pendentes.length > 0 && (
+              <div className="composer-anexos">
+                {pendentes.map((a) => (
+                  <span key={a.id} className="anexo-chip">
+                    <IconeArquivo nome={a.nome} />{a.nome}<small>{tamanhoLegivel(a.tamanho)}</small>
+                    <button aria-label={`Remover ${a.nome}`} onClick={() => setPendentes((p) => p.filter((x) => x.id !== a.id))}>×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <textarea
+              ref={caixa} rows={1} value={texto} autoFocus disabled={rodando}
+              placeholder={mensagens.length ? 'Responda, corrija algo ou tire uma dúvida…' : `Descreva a ${nomeItem} ou anexe arquivos…`}
+              onChange={(e) => setTexto(e.target.value)} onKeyDown={teclar}
+              onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); anexar(e.clipboardData.files) } }}
+            />
+            <div className="composer-barra">
+              <button className="botao-icone" onClick={() => seletor.current?.click()} disabled={rodando} title="Anexar arquivos (qualquer tipo)">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3L6.2 11.3a1 1 0 01-1.5-1.5L10 4.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
+                Anexar
+              </button>
+              <input ref={seletor} type="file" multiple hidden onChange={(e) => { if (e.target.files) anexar(e.target.files); e.target.value = '' }} />
+              <span className="composer-dica">Enter envia · Shift+Enter quebra linha · arraste ou cole arquivos</span>
+              <button className="botao-enviar" onClick={() => enviar()} disabled={rodando || (!texto.trim() && !pendentes.length)} aria-label="Enviar">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5L8 3l4.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+            </div>
+          </div>
+          {arrastando && <div className="chat-soltar"><div><IconeArquivo nome="" grande /><strong>Solte para anexar</strong><span>Qualquer tipo de arquivo</span></div></div>}
+        </section>
+
+        <aside className="revisao">
+          <div className="revisao-topo">
+            <div>
+              <h3>Resumo para confirmar</h3>
+              {meta?.confianca && <span className={`tag ${meta.confianca === 'alta' ? 'bom' : meta.confianca === 'baixa' ? 'ruim' : 'laranja'}`}>confiança {meta.confianca === 'media' ? 'média' : meta.confianca}</span>}
+            </div>
+            <p className={meta?.resumo ? 'revisao-resumo' : 'revisao-resumo apagado'}>{meta?.resumo ?? 'O que a IA entender aparece aqui. Você também pode preencher ou corrigir à mão.'}</p>
+          </div>
+          <div className="revisao-destaques">
+            {destaques.map((d) => (
+              <div key={d.rotulo} className={`destaque ${d.valor ? 'cheio' : ''}`}>
+                <span>{d.rotulo}</span>
+                <strong>{d.valor ?? <i className="esqueleto" />}</strong>
+                {d.sub && <small>{d.sub}</small>}
+              </div>
+            ))}
+          </div>
+          {meta && meta.pendencias.length > 0 && (
+            <div className="revisao-pendencias">
+              <strong>Para confirmar</strong>
+              <ul>{meta.pendencias.map((p) => <li key={p}><button onClick={() => { setTexto(`Sobre "${p}": `); caixa.current?.focus() }}>{p}</button></li>)}</ul>
+            </div>
+          )}
+          <div className="revisao-form">
+            {alvo === 'divida'
+              ? <CamposDividaForm f={fd} nova foco={false} categorias={dados.categorias} destacar={destacar} />
+              : <CamposReceitaForm f={fr} categorias={dados.categorias} contas={contas} destacar={destacar} />}
+          </div>
+          <div className="revisao-rodape">
+            <button className="botao secundario" onClick={voltar}>Cancelar</button>
+            <button className="botao laranja" onClick={confirmar} disabled={salvando || rodando}>{salvando ? 'Salvando…' : `Confirmar e cadastrar`}</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+  )
+}
+
+function IconeArquivo({ nome, grande }: { nome: string; grande?: boolean }) {
+  const ext = nome.split('.').pop()?.toLowerCase() ?? ''
+  const tipo = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic'].includes(ext) ? 'img' : ext === 'pdf' ? 'pdf' : ['xls', 'xlsx', 'csv', 'numbers'].includes(ext) ? 'planilha' : 'doc'
+  return (
+    <span className={`arquivo-icone ${tipo} ${grande ? 'grande' : ''}`} aria-hidden="true">
+      {tipo === 'img'
+        ? <svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.4" /><circle cx="6" cy="6.5" r="1.2" fill="currentColor" /><path d="M3 12l3.5-3.5 2.5 2.5 2-2 2.5 2.5" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
+        : <svg viewBox="0 0 16 16"><path d="M4 1.5h5.5L13 5v9.5H4z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /><path d="M9.5 1.5V5H13" fill="none" stroke="currentColor" strokeWidth="1.4" /></svg>}
+    </span>
+  )
+}
+
+const IconeVisto = () => (<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>)

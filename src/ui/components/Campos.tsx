@@ -13,11 +13,12 @@ type Base = { erro?: boolean; disabled?: boolean; id?: string }
 
 export function Campo({ rotulo, erro, dica, children, largo }: { rotulo: string; erro?: string; dica?: string; children: ReactNode; largo?: boolean }) {
   return (
-    <label className={`campo ${erro ? 'com-erro' : ''}`} style={largo ? { gridColumn: '1 / -1' } : undefined}>
-      <span className="campo-rotulo">{rotulo}</span>
+    // div (e não label): um label repassa o clique ao primeiro botão de dentro, o que quebra Segmentos e Selecao.
+    <div className={`campo ${erro ? 'com-erro' : ''}`} style={largo ? { gridColumn: '1 / -1' } : undefined} role="group" aria-label={rotulo}>
+      <span className="campo-rotulo" onClick={(e) => e.currentTarget.parentElement?.querySelector<HTMLElement>('input, textarea, button')?.focus()}>{rotulo}</span>
       {children}
       {erro ? <span className="campo-erro">{erro}</span> : dica ? <span className="campo-dica">{dica}</span> : null}
-    </label>
+    </div>
   )
 }
 

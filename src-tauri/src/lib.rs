@@ -16,6 +16,12 @@ fn migracoes() -> Vec<Migration> {
         description: "pagamento de fatura e pausa de recorrentes",
         sql: include_str!("../migrations/002_pagamento_fatura.sql"),
         kind: MigrationKind::Up,
+    },
+    Migration {
+        version: 3,
+        description: "detalhes de dividas e receitas",
+        sql: include_str!("../migrations/003_detalhes.sql"),
+        kind: MigrationKind::Up,
     }]
 }
 
@@ -27,7 +33,7 @@ pub fn run() {
                 .add_migrations(DB_URL, migracoes())
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![ai::motores_disponiveis, ai::executar_analise])
+        .invoke_handler(tauri::generate_handler![ai::motores_disponiveis, ai::executar_analise, ai::executar_ia])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(

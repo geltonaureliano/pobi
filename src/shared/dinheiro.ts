@@ -4,6 +4,18 @@ export type Centavos = number
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const compacto = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 })
 
+const decimal = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+/** Centavos → "1.234,56" (texto de formulário, sem o R$). */
+export const centavosParaTexto = (c: Centavos | null | undefined) => (c == null ? '' : decimal.format(c / 100))
+/** Número em % → "1,99" (texto de formulário). */
+export const pctParaTexto = (v: number | null | undefined) => (v == null || !Number.isFinite(v) ? '' : String(Math.round(v * 10000) / 10000).replace('.', ','))
+/** "1,99" ou "1.99" → 1.99; vazio → null; inválido → NaN. */
+export function textoParaNumero(t: string): number | null {
+  const v = t.trim().replace('%', '').trim()
+  if (!v) return null
+  return Number(v.includes(',') ? v.replace(/\./g, '').replace(',', '.') : v)
+}
+
 export const formatarBRL = (c: Centavos) => brl.format(c / 100)
 export const formatarCompacto = (c: Centavos) => `R$ ${compacto.format(c / 100)}`
 

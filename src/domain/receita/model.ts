@@ -13,5 +13,11 @@ export interface Receita {
   categoria_id: number | null
   ativa: 0 | 1
   observacao: string | null
+  /** FIXA: mesmo valor todo mês. VARIAVEL: `valor` é a média esperada, com faixa opcional. */
+  tipo_valor: 'FIXA' | 'VARIAVEL'
+  valor_min: Centavos | null
+  valor_max: Centavos | null
+  fonte: string | null
+  origem: 'MANUAL' | 'IA'
 }
-export type NovaReceita = Omit<Receita, 'id' | 'ativa'>
+export type NovaReceita = Omit<Receita, 'id' | 'ativa' | 'origem'> & { origem?: 'MANUAL' | 'IA' }

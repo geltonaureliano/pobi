@@ -1,12 +1,16 @@
 import { useState } from 'react'
-import { formatarBRL, paraCentavos } from '../shared/dinheiro'
+import { formatarBRL, paraCentavos, pctParaTexto } from '../shared/dinheiro'
 import { dataValida, hoje } from '../shared/data'
 import { atualizarDivida, atualizarParcela, criarDivida, excluirDivida, pagarParcela } from '../domain/divida/repository'
 import { parcelasAtrasadas, progressoDaDivida, saldoDevedor } from '../domain/divida/rules'
-import type { Divida, Parcela, StatusDivida } from '../domain/divida/model'
+import { SISTEMAS, TIPOS_DIVIDA, type Divida, type Parcela } from '../domain/divida/model'
+import { camposDeDivida, camposDividaVazios, validarDivida, type CamposDivida } from '../domain/divida/form'
+import { EscolhaCadastro } from '../ui/components/EscolhaCadastro'
+import { Assistente } from './assistente/Assistente'
+import { CamposDividaForm } from './assistente/formularios'
 import { Barra } from '../ui/components/Barra'
 import { Modal, BotaoExcluir } from '../ui/components/Modal'
-import { Campo, Vazio, Texto, Data, Moeda, Selecao } from '../ui/components/Campos'
+import { Campo, Vazio, Data, Moeda, Selecao } from '../ui/components/Campos'
 import { useForm } from '../ui/useForm'
 import { Dinheiro } from '../ui/components/Dinheiro'
 import type { Dados } from '../ui/useDados'
@@ -19,7 +23,10 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
   const [aberta, setAberta] = useState<number | null>(null)
   const [pagando, setPagando] = useState<{ divida: Divida; parcela: Parcela } | null>(null)
   const [ajustando, setAjustando] = useState<Parcela | null>(null)
-  const fd = useForm({ nome: '', credor: '', total: '', parcelas: '1', primeiro: hoje(), taxa: '', status: 'ATIVA' as StatusDivida, categoria_id: '' })
+  const fd = useForm<CamposDivida>(camposDividaVazios())
+  const [escolhendo, setEscolhendo] = useState(false)
+  const [comIA, setComIA] = useState(false)
+  const [aviso, setAviso] = useState<string | null>(null)
   const fp = useForm({ conta_id: '', valor: '', data: hoje() })
   const fa = useForm({ valor: '', vencimento: '' })
   const hojeISO = hoje()
@@ -30,28 +37,14 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
   const catDividas = dados.categorias.find((k) => k.nome === 'Dívidas')?.id
 
   function abrir(d?: Divida) {
-    fd.reiniciar(d
-      ? { nome: d.nome, credor: d.credor ?? '', total: reais(d.valor_total), parcelas: '', primeiro: '', taxa: d.taxa_mensal != null ? String(d.taxa_mensal).replace('.', ',') : '', status: d.status, categoria_id: d.categoria_id ? String(d.categoria_id) : '' }
-      : { nome: '', credor: '', total: '', parcelas: '1', primeiro: hoje(), taxa: '', status: 'ATIVA', categoria_id: catDividas ? String(catDividas) : '' })
+    fd.reiniciar(d ? camposDeDivida(d) : camposDividaVazios(catDividas ? String(catDividas) : ''))
     setEditando(d ?? 'nova')
   }
   async function salvar() {
-    const v = fd.valores
-    const taxa = v.taxa.trim() ? Number(v.taxa.replace(',', '.')) : null
-    const erros: Record<string, string> = {}
-    if (!v.nome.trim()) erros.nome = 'Informe o nome.'
-    if (taxa != null && !(taxa >= 0)) erros.taxa = 'Taxa inválida.'
-    if (editando === 'nova') {
-      const t = paraCentavos(v.total), n = Number(v.parcelas)
-      if (t == null || t <= 0) erros.total = 'Valor maior que zero.'
-      if (!(Number.isInteger(n) && n >= 1 && n <= 600)) erros.parcelas = 'De 1 a 600.'
-      if (!dataValida(v.primeiro)) erros.primeiro = 'Data inválida.'
-      if (Object.keys(erros).length) return fd.setErros(erros)
-      await criarDivida({ nome: v.nome.trim(), credor: v.credor.trim() || null, total: t!, parcelas: n, primeiroVencimento: v.primeiro, taxa_mensal: taxa, categoria_id: v.categoria_id ? Number(v.categoria_id) : null })
-    } else if (editando) {
-      if (Object.keys(erros).length) return fd.setErros(erros)
-      await atualizarDivida(editando.id, { nome: v.nome.trim(), credor: v.credor.trim() || null, taxa_mensal: taxa, status: v.status })
-    }
+    const r = validarDivida(fd.valores, editando === 'nova')
+    if (!r.ok) return fd.setErros(r.erros)
+    if (editando === 'nova') await criarDivida(r.nova)
+    else if (editando) await atualizarDivida(editando.id, r.edicao)
     setEditando(null); recarregar()
   }
   function abrirPagamento(divida: Divida, parcela: Parcela) {
@@ -66,9 +59,14 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
     setPagando(null); recarregar()
   }
 
+  if (comIA) {
+    return <Assistente alvo="divida" dados={dados} voltar={() => setComIA(false)} concluir={(msg) => { setComIA(false); setAviso(msg); recarregar() }} />
+  }
+
   return (
     <>
-      <div className="topo"><h1>Dívidas</h1><button className="botao" onClick={() => abrir()}>Nova dívida</button></div>
+      <div className="topo"><h1>Dívidas</h1><button className="botao" onClick={() => setEscolhendo(true)}>Nova dívida</button></div>
+      {aviso && <div className="secao"><div className="aviso sucesso">{aviso}</div></div>}
       <div className="cards" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="card"><h3>Saldo devedor</h3><div className="valor"><Dinheiro valor={saldoDevedor(todasParcelas)} animar /></div></div>
         <div className="card"><h3>Próximos 30 dias</h3><div className="valor"><Dinheiro valor={prox30} animar /></div></div>
@@ -82,7 +80,18 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
         return (
           <div className="secao" key={d.id} style={{ opacity: d.status === 'QUITADA' ? 0.65 : 1 }}>
             <div className="secao-topo">
-              <h3>{d.nome}{d.credor && <span className="sutil"> · {d.credor}</span>}{d.taxa_mensal != null && <span className="sutil"> · {String(d.taxa_mensal).replace('.', ',')}% a.m.</span>}</h3>
+              <div className="divida-titulo">
+                <h3>{d.nome}{d.origem === 'IA' && <span className="tag ia" title="Cadastrada com o assistente de IA">IA</span>}</h3>
+                <div className="divida-meta">
+                  {d.tipo && <span>{TIPOS_DIVIDA.find((t) => t.id === d.tipo)?.nome}</span>}
+                  {d.credor && <span>{d.credor}</span>}
+                  {d.valor_contratado != null && <span>contratado <Dinheiro valor={d.valor_contratado} /></span>}
+                  {d.taxa_mensal != null && <span>{pctParaTexto(d.taxa_mensal)}% a.m.</span>}
+                  {d.taxa_anual != null && <span>{pctParaTexto(d.taxa_anual)}% a.a.</span>}
+                  {d.cet_anual != null && <span>CET {pctParaTexto(d.cet_anual)}% a.a.</span>}
+                  {d.sistema && <span>{SISTEMAS.find((x) => x.id === d.sistema)?.nome}</span>}
+                </div>
+              </div>
               <div className="acoes">
                 <span className={`tag ${d.status === 'QUITADA' ? 'bom' : atrasadas ? 'ruim' : ''}`}>{d.status === 'QUITADA' ? 'quitada' : d.status === 'RENEGOCIADA' ? 'renegociada' : atrasadas ? `${atrasadas} atrasada(s)` : 'em dia'}</span>
                 <button className="aba" onClick={() => setAberta(aberta === d.id ? null : d.id)}>{aberta === d.id ? 'ocultar parcelas' : 'parcelas'}</button>
@@ -120,19 +129,12 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
         )
       })}
 
-      <Modal titulo={editando === 'nova' ? 'Nova dívida' : 'Editar dívida'} aberto={editando != null} fechar={() => setEditando(null)} rodape={<button className="botao" onClick={salvar}>Salvar</button>}>
-        <Campo rotulo="Nome" erro={fd.erros.nome}><Texto autoFocus placeholder="Financiamento, empréstimo…" {...fd.campo('nome')} /></Campo>
-        <Campo rotulo="Credor"><Texto {...fd.campo('credor')} /></Campo>
-        {editando === 'nova' ? <>
-          <Campo rotulo="Valor total" erro={fd.erros.total}><Moeda {...fd.campo('total')} /></Campo>
-          <Campo rotulo="Número de parcelas" erro={fd.erros.parcelas}><Texto numerico maxLength={3} {...fd.campo('parcelas')} /></Campo>
-          <Campo rotulo="1º vencimento" erro={fd.erros.primeiro}><Data {...fd.campo('primeiro')} /></Campo>
-        </> : (
-          <Campo rotulo="Situação"><Selecao {...fd.campo('status')} vazio={null} itens={[{ id: 'ATIVA', nome: 'Ativa' }, { id: 'RENEGOCIADA', nome: 'Renegociada' }, { id: 'QUITADA', nome: 'Quitada' }]} /></Campo>
-        )}
-        <Campo rotulo="Juros ao mês (%, informativo)" erro={fd.erros.taxa}><Texto placeholder="opcional" inputMode="decimal" sufixo="% a.m." {...fd.campo('taxa')} /></Campo>
-        {editando === 'nova' && <Campo rotulo="Categoria"><Selecao {...fd.campo('categoria_id')} itens={dados.categorias.filter((k) => k.tipo === 'DESPESA')} /></Campo>}
-        <p className="sutil" style={{ gridColumn: '1 / -1', margin: 0 }}>{editando === 'nova' ? 'O total é dividido em parcelas mensais iguais; os centavos que sobram vão para a última. Dá para ajustar parcela por parcela depois.' : 'As parcelas já geradas não mudam aqui; ajuste cada uma na lista de parcelas.'}</p>
+      <EscolhaCadastro aberto={escolhendo} fechar={() => setEscolhendo(false)} titulo="Nova dívida" item="da dívida"
+        manual={() => { setEscolhendo(false); abrir() }} ia={() => { setEscolhendo(false); setComIA(true) }} />
+
+      <Modal titulo={editando === 'nova' ? 'Nova dívida' : 'Editar dívida'} aberto={editando != null} fechar={() => setEditando(null)} largura={680} rodape={<button className="botao" onClick={salvar}>Salvar</button>}>
+        <CamposDividaForm f={fd} nova={editando === 'nova'} categorias={dados.categorias} />
+        {editando !== 'nova' && <p className="sutil" style={{ gridColumn: '1 / -1', margin: 0 }}>As parcelas já geradas não mudam aqui; ajuste cada uma na lista de parcelas.</p>}
       </Modal>
 
       <Modal titulo={pagando ? `Pagar ${pagando.divida.nome} · parcela ${pagando.parcela.numero}` : ''} aberto={pagando != null} fechar={() => setPagando(null)} rodape={<button className="botao" onClick={pagar}>Registrar pagamento</button>}>

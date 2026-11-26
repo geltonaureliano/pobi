@@ -15,6 +15,20 @@ export function gerarParcelas(total: Centavos, n: number, primeiroVencimento: Da
   }))
 }
 
+/** N parcelas de valor fixo (contrato com parcela definida, ex.: Price). */
+export function gerarParcelasFixas(valorParcela: Centavos, n: number, primeiroVencimento: DataISO) {
+  return gerarParcelas(valorParcela * n, n, primeiroVencimento)
+}
+
+/** Converte taxa mensal em anual equivalente (juros compostos), em %. */
+export const taxaAnualDe = (mensal: number) => (Math.pow(1 + mensal / 100, 12) - 1) * 100
+/** Converte taxa anual em mensal equivalente, em %. */
+export const taxaMensalDe = (anual: number) => (Math.pow(1 + anual / 100, 1 / 12) - 1) * 100
+
+/** Juros embutidos: quanto se paga além do valor contratado. */
+export const jurosTotais = (totalAPagar: Centavos, contratado: Centavos | null) =>
+  contratado != null && contratado > 0 ? Math.max(0, totalAPagar - contratado) : null
+
 export const parcelaPaga = (p: Pick<Parcela, 'pago_em'>) => p.pago_em != null
 
 /** Saldo devedor nominal: soma das parcelas em aberto. Não calcula juros presumidos. */
