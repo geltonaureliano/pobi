@@ -13,5 +13,4 @@ export const Icones = {
   receitas: () => (<svg viewBox="0 0 16 16"><path d="M8 1 14 7h-4v8H6V7H2Z" {...p} /></svg>),
   custos: () => (<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" {...p} /><path d="M8 4v4.5l3 2" fill="none" stroke="#1c1c1c" strokeWidth="1.6" strokeLinecap="round" /></svg>),
   categorias: () => (<svg viewBox="0 0 16 16"><path d="M1 1h6.5L15 8.5 8.5 15 1 7.5Z" {...p} /><circle cx="4.5" cy="4.5" r="1.4" fill="#1c1c1c" /></svg>),
-  logo: () => (<svg viewBox="0 0 26 26" className="marca-logo"><path d="M2 2h22v6H8v4h16v12H2v-6h16v-4H2Z" fill="#fff" /></svg>),
 }

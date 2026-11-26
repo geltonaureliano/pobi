@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Icones } from './ui/icones'
 import { useDados } from './ui/useDados'
+import { Marca } from './ui/components/Marca'
 import { BarraTitulo } from './ui/components/BarraTitulo'
 import { Perfil } from './ui/components/Perfil'
 import { Painel } from './pages/Painel'
@@ -16,7 +17,7 @@ import { Analises } from './pages/Analises'
 import { Ajustes } from './pages/Ajustes'
 
 type Pagina = Exclude<keyof typeof Icones & string, 'orcamentos'>
-const MENU: { grupo: string; itens: { id: Exclude<Pagina, 'logo'>; rotulo: string }[] }[] = [
+const MENU: { grupo: string; itens: { id: Pagina; rotulo: string }[] }[] = [
   { grupo: 'Principal', itens: [{ id: 'painel', rotulo: 'Dashboard' }, { id: 'lancamentos', rotulo: 'Lançamentos' }] },
   { grupo: 'Cadastros', itens: [
     { id: 'contas', rotulo: 'Contas' }, { id: 'cartoes', rotulo: 'Cartões' }, { id: 'receitas', rotulo: 'Receitas' },
@@ -27,7 +28,7 @@ const MENU: { grupo: string; itens: { id: Exclude<Pagina, 'logo'>; rotulo: strin
 ]
 
 export default function App() {
-  const [pagina, setPagina] = useState<Exclude<Pagina, 'logo'>>('painel')
+  const [pagina, setPagina] = useState<Pagina>('painel')
   const { dados, erro, recarregar } = useDados()
 
   let corpo: ReactNode = <div className="secao sutil">{erro ?? 'Carregando…'}</div>
@@ -54,7 +55,7 @@ export default function App() {
       <BarraTitulo recarregar={recarregar} />
       <div className="shell">
       <aside className="sidebar">
-        <div className="marca"><Icones.logo />POBI</div>
+        <div className="marca"><Marca inversa altura={30} /></div>
         {MENU.map((g) => (
           <div key={g.grupo}>
             <div className="grupo">{g.grupo}</div>
