@@ -1,5 +1,5 @@
 [package]
-name = "fiance"
+name = "pobi"
 version = "0.1.0"
 description = "Finanças pessoais com banco local e análises por IA"
 authors = ["Gelton"]
@@ -11,7 +11,7 @@ rust-version = "1.90"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "fiance_lib"
+name = "pobi_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

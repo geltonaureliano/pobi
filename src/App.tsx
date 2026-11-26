@@ -50,7 +50,7 @@ export default function App() {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="marca"><Icones.logo />FIANCE</div>
+        <div className="marca"><Icones.logo />POBI</div>
         {MENU.map((g) => (
           <div key={g.grupo}>
             <div className="grupo">{g.grupo}</div>

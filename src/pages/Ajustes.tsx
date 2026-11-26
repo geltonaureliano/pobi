@@ -29,7 +29,7 @@ export function Ajustes() {
       </div>
       <div className="secao">
         <div className="secao-topo"><h3>Banco de dados</h3></div>
-        <p className="sutil">Arquivo SQLite local <code>financas.db</code>, na pasta de dados do app (no Mac: ~/Library/Application Support/com.gelton.fiance). Nada sai do computador, exceto o resumo agregado enviado ao CLI quando você pede uma análise.</p>
+        <p className="sutil">Arquivo SQLite local <code>financas.db</code>, na pasta de dados do app (no Mac: ~/Library/Application Support/com.gelton.pobi). Nada sai do computador, exceto o resumo agregado enviado ao CLI quando você pede uma análise.</p>
       </div>
     </>
   )

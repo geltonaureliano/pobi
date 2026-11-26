@@ -1,4 +1,4 @@
-# Fiance
+# Pobi
 
 App desktop de finanças pessoais. Banco SQLite local, visual próprio (Azeret Mono, laranja/creme/escuro) e análises por IA usando o **CLI do Claude Code ou do Codex** já instalado na máquina, sem chave de API.
 
@@ -14,7 +14,7 @@ npm test           # testes das regras de negócio
 npm run tauri build  # gera o .app / .dmg
 ```
 
-O banco fica em `~/Library/Application Support/com.gelton.fiance/financas.db`.
+O banco fica em `~/Library/Application Support/com.gelton.pobi/financas.db`.
 
 ## Organização: uma pasta por entidade
 
@@ -61,3 +61,7 @@ A tela **Análises** monta um resumo agregado do mês (nada de extrato completo)
 - Dinheiro sempre em centavos inteiros. Datas como texto `AAAA-MM-DD`; competência como `AAAA-MM`.
 - Regra nova entra em `rules.ts` com teste e é descrita no `RULES.md` da entidade.
 - Mudança de banco é uma nova migração em `src-tauri/migrations/` registrada em `src-tauri/src/lib.rs`; nunca editar uma migração já publicada.
+
+## Commits
+
+O histórico segue [Conventional Commits](https://www.conventionalcommits.org/pt-br/): `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`, com escopo opcional da entidade (ex.: `feat(divida): ...`).

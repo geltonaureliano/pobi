@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Fiance",
+  "productName": "Pobi",
   "version": "0.1.0",
-  "identifier": "com.gelton.fiance",
+  "identifier": "com.gelton.pobi",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Fiance",
+        "title": "Pobi",
         "width": 1280,
         "height": 820,
         "minWidth": 1024,
