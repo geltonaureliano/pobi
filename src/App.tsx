@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Icones } from './ui/icones'
 import { useDados } from './ui/useDados'
 import { BarraTitulo } from './ui/components/BarraTitulo'
+import { Perfil } from './ui/components/Perfil'
 import { Painel } from './pages/Painel'
 import { Lancamentos } from './pages/Lancamentos'
 import { Contas } from './pages/Contas'
@@ -67,7 +68,7 @@ export default function App() {
             })}
           </div>
         ))}
-        <div className="sidebar-rodape"><div className="avatar">G</div><div>Gelton<small>banco local</small></div></div>
+        <Perfil contas={dados?.contas} />
       </aside>
       <main className="conteudo"><div className="painel" key={pagina}>{corpo}</div></main>
       </div>

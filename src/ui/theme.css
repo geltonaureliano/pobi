@@ -74,6 +74,20 @@ button { cursor: pointer; }
 .sidebar-rodape { margin-top: auto; padding: 8px; display: flex; gap: 10px; align-items: center; }
 .avatar { width: 34px; height: 34px; border-radius: 50%; background: #a39a5b; color: var(--escuro); display: grid; place-items: center; font-weight: 600; }
 .sidebar-rodape small { display: block; color: #8f8d85; }
+.perfil { border-radius: 10px; cursor: pointer; transition: background .15s; }
+.perfil:hover, .perfil.editando { background: var(--escuro-2); }
+.perfil.editando { cursor: default; }
+.perfil-texto { min-width: 0; flex: 1; }
+.perfil-nome { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.perfil-nome span { overflow: hidden; text-overflow: ellipsis; }
+.perfil-nome svg { width: 11px; height: 11px; color: #8f8d85; opacity: 0; transition: opacity .15s; }
+.perfil:hover .perfil-nome svg { opacity: 1; }
+.perfil small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.perfil small.negativo { color: #e0735f; }
+.perfil-campo {
+  width: 100%; padding: 2px 6px; margin: -3px 0 -1px -6px; border: 1px solid var(--laranja); border-radius: 6px;
+  background: var(--escuro); color: var(--branco); outline: none;
+}
 
 .conteudo { background: var(--escuro); padding: 12px 12px 12px 0; min-height: 0; }
 .painel { background: var(--branco); border-radius: 18px; height: 100%; overflow: auto; }
