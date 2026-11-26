@@ -11,4 +11,7 @@ export interface Receita {
   fim: DataISO | null
   conta_id: number | null
   categoria_id: number | null
+  ativa: 0 | 1
+  observacao: string | null
 }
+export type NovaReceita = Omit<Receita, 'id' | 'ativa'>

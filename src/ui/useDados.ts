@@ -4,14 +4,15 @@ import type { Categoria } from '../domain/categoria/model'
 import { listarContas } from '../domain/conta/repository'
 import type { ContaComSaldo } from '../domain/conta/model'
 import { comSaldos } from '../domain/conta/rules'
-import { listarCartoes } from '../domain/cartao/repository'
+import { listarCartoesTodos } from '../domain/cartao/repository'
 import type { Cartao } from '../domain/cartao/model'
 import { todosLancamentos } from '../domain/lancamento/repository'
 import type { LancamentoDetalhado } from '../domain/lancamento/model'
 import { listarDividas, listarParcelas } from '../domain/divida/repository'
 import type { Divida, Parcela } from '../domain/divida/model'
-import { banco } from '../db/client'
 import type { Receita } from '../domain/receita/model'
+import { listarReceitas } from '../domain/receita/repository'
+import { listarCustosFixos } from '../domain/custo-fixo/repository'
 import type { CustoFixo } from '../domain/custo-fixo/model'
 
 export interface Dados {
@@ -31,10 +32,9 @@ export function useDados() {
   const [erro, setErro] = useState<string | null>(null)
   const recarregar = useCallback(async () => {
     try {
-      const db = await banco()
       const [lancamentos, contas, categorias, cartoes, dividas, parcelas, receitas, custosFixos] = await Promise.all([
-        todosLancamentos(), listarContas(), listarCategorias(), listarCartoes(), listarDividas(), listarParcelas(),
-        db.select<Receita>('SELECT * FROM receitas'), db.select<CustoFixo>('SELECT * FROM custos_fixos'),
+        todosLancamentos(), listarContas(), listarCategorias(), listarCartoesTodos(), listarDividas(), listarParcelas(),
+        listarReceitas(), listarCustosFixos(),
       ])
       setDados({ lancamentos, contas: comSaldos(contas, lancamentos), categorias, cartoes, dividas, parcelas, receitas, custosFixos })
     } catch (e) {

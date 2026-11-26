@@ -43,7 +43,8 @@ export function validarLancamento(
       tipo: f.tipo,
       status: f.pendente ? 'PENDENTE' : 'PAGO',
       data: f.data,
-      conta_id: id(f.conta_id),
+      // Despesa no cartão não sai da conta agora; sai quando a fatura é paga.
+      conta_id: f.tipo !== 'TRANSFERENCIA' && f.cartao_id ? null : id(f.conta_id),
       conta_destino_id: f.tipo === 'TRANSFERENCIA' ? id(f.conta_destino_id) : null,
       cartao_id: f.tipo === 'TRANSFERENCIA' ? null : id(f.cartao_id),
       categoria_id: f.tipo === 'TRANSFERENCIA' ? null : id(f.categoria_id),

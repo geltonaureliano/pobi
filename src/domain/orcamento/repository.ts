@@ -28,3 +28,7 @@ export async function copiarOrcamentos(de: Competencia, para: Competencia) {
     [de, para],
   )
 }
+
+export async function excluirOrcamento(id: number) {
+  await (await banco()).execute('DELETE FROM orcamentos WHERE id = $1', [id])
+}

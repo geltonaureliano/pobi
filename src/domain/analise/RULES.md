@@ -9,7 +9,7 @@ O binário é procurado pelo shell de login do usuário (apps do macOS não herd
 
 ## O que é enviado
 
-Só dados **agregados** do mês e dos dois anteriores (`ResumoFinanceiro`): totais por mês, gasto por categoria (com o mês anterior), orçamentos, receita prevista, custos fixos pagos/em aberto, saldo devedor e parcelas, e os 5 maiores gastos do mês (descrição, categoria e valor). Nenhum extrato completo, número de conta ou cartão.
+Só dados **agregados** do mês e dos dois anteriores (`ResumoFinanceiro`): totais por mês, gasto por categoria (com o mês anterior), orçamentos, receita prevista, custos fixos pagos/em aberto, saldo devedor e parcelas, os 5 maiores gastos do mês (descrição, categoria e valor) e o bloco `saude` do relatório mensal (score, faixa, comprometimento, taxa de poupança, reserva em meses, essenciais × não essenciais). Nenhum extrato completo, número de conta ou cartão.
 
 ## O que se espera de volta
 

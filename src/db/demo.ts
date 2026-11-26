@@ -1,6 +1,7 @@
 import type { Banco } from './client'
 import { competenciaDe, dataNoMes, deslocarCompetencia, hoje, intervaloDeDias } from '../shared/data'
 import { gerarParcelas } from '../domain/divida/rules'
+import { faturaDaCompra, marcaDePagamento, vencimentoDaFatura } from '../domain/cartao/rules'
 
 /** Dados fictícios só para o modo navegador (desenvolvimento da interface). Nunca roda no app desktop. */
 export async function semearDemo(db: Banco) {
@@ -41,6 +42,22 @@ export async function semearDemo(db: Banco) {
       await ins(d, desc, Math.round(base * (0.4 + rnd() * 1.2)), 'DESPESA', cat, noCartao ? null : 1, noCartao ? 1 : null)
     }
   }
+  // Faturas já vencidas são pagas pela conta principal no dia do vencimento.
+  const cartao = { dia_fechamento: 3, dia_vencimento: 10 }
+  const porFatura = new Map<string, number>()
+  for (const l of await db.select<{ data: string; valor: number }>('SELECT data, valor FROM lancamentos WHERE cartao_id = 1')) {
+    const f = faturaDaCompra(cartao, l.data)
+    porFatura.set(f, (porFatura.get(f) ?? 0) + l.valor)
+  }
+  for (const [f, total] of porFatura) {
+    const venc = vencimentoDaFatura(cartao, f)
+    if (venc >= fim) continue
+    await db.execute(
+      "INSERT INTO lancamentos (descricao, valor, tipo, status, data, conta_id, fatura_ref) VALUES ($1,$2,'DESPESA','PAGO',$3,1,$4)",
+      [`Fatura Nubank Roxinho ${f}`, total, venc, marcaDePagamento(1, f)],
+    )
+  }
+
   const atual = competenciaDe(fim)
   for (const [cat, lim] of [['Mercado', 220000], ['Restaurantes', 80000], ['Lazer', 50000], ['Transporte', 60000], ['Compras', 100000]] as const) {
     await db.execute('INSERT INTO orcamentos (categoria_id, competencia, limite) VALUES ($1,$2,$3)', [cats[cat], atual, lim])

@@ -14,6 +14,7 @@ export interface ResumoFinanceiro {
   custosFixos: { total: number; pagos: number; emAberto: number }
   dividas: { saldoDevedor: number; parcelasAtrasadas: number; proximos30dias: number }
   maioresGastos: { descricao: string; categoria: string; valor: number }[]
+  saude: { score: number; faixa: string; comprometimento: number | null; taxaPoupanca: number | null; reservaEmMeses: number | null; essenciais: number; naoEssenciais: number }
 }
 
 export type Severidade = 'atencao' | 'oportunidade' | 'positivo'

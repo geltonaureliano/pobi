@@ -14,7 +14,7 @@ import type { Dados } from '../ui/useDados'
 
 const JANELAS = { '3M': 3, '6M': 6, '9M': 9 } as const
 
-export function Painel({ dados }: { dados: Dados }) {
+export function Painel({ dados, ir }: { dados: Dados; ir: (p: 'relatorio' | 'anual' | 'lancamentos') => void }) {
   const c = competenciaDe(hoje())
   const [janela, setJanela] = useState<keyof typeof JANELAS>('9M')
   const [orcamentos, setOrcamentos] = useState<(Orcamento & { categoria_nome: string })[]>([])
@@ -38,7 +38,13 @@ export function Painel({ dados }: { dados: Dados }) {
 
   return (
     <>
-      <div className="topo"><h1>Painel · {rotuloCompetencia(c)}</h1><span className="sutil">{dados.contas.length} contas</span></div>
+      <div className="topo">
+        <h1>Painel · {rotuloCompetencia(c)}</h1>
+        <div className="acoes">
+          <button className="botao secundario" onClick={() => ir('relatorio')}>Relatório mensal</button>
+          <button className="botao secundario" onClick={() => ir('anual')}>Análise anual</button>
+        </div>
+      </div>
       <div className="cards">
         <MetricCard titulo="Saldo total" valor={formatarBRL(saldoTotal(dados.contas))} badge={`${dados.contas.filter((x) => !x.arquivada).length} contas ativas`} tom="neutro" />
         <MetricCard titulo="Receitas do mês" valor={formatarBRL(m.receitas.valor)} badge={br?.texto} tom={br?.tom} />

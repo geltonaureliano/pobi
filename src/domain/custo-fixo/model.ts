@@ -11,4 +11,7 @@ export interface CustoFixo {
   conta_id: number | null
   cartao_id: number | null
   categoria_id: number | null
+  ativo: 0 | 1
+  observacao: string | null
 }
+export type NovoCustoFixo = Omit<CustoFixo, 'id' | 'ativo'>

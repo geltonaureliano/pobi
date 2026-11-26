@@ -124,3 +124,46 @@ button { cursor: pointer; }
 .conteudo, .form > *, .campo input, .campo select { min-width: 0; }
 .campo input, .campo select { width: 100%; }
 .ranking-item .barra-linha { margin-bottom: 0; }
+
+/* Modal */
+.modal-fundo { position: fixed; inset: 0; background: rgba(28,28,28,.55); display: grid; place-items: center; z-index: 10; padding: 24px; }
+.modal { background: var(--branco); border-radius: 16px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(0,0,0,.3); }
+.modal-topo { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--linha); }
+.modal-topo h3 { margin: 0; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+.modal-corpo { padding: 20px 24px; overflow: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.modal-rodape { padding: 16px 24px; border-top: 1px solid var(--linha); display: flex; justify-content: flex-end; gap: 8px; }
+.aba.perigo { background: var(--vermelho-fundo); color: var(--vermelho); }
+.check { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--texto); }
+.vazio { padding: 28px; text-align: center; color: var(--texto-2); background: var(--creme-2); border-radius: 10px; }
+.acoes { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.filtros { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.tag { display: inline-block; padding: 3px 8px; border-radius: 5px; font-size: 10px; background: var(--cinza-fundo); color: var(--texto-2); }
+.tag.bom { background: var(--verde-fundo); color: var(--verde); } .tag.ruim { background: var(--vermelho-fundo); color: var(--vermelho); } .tag.laranja { background: var(--laranja-4); color: #a8670a; }
+.grade-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.mini-card { background: var(--creme-2); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.mini-card .linha-topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.bolinha { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+.tres { display: grid; grid-template-columns: repeat(3, 1fr); }
+.tres > .secao { border-right: 1px solid var(--linha); } .tres > .secao:last-child { border-right: 0; }
+.valor-m { font-size: 20px; font-weight: 500; margin: 8px 0 4px; }
+
+/* Gráficos */
+.grafico { width: 100%; height: auto; display: block; }
+.grafico .grade { stroke: var(--linha); stroke-width: 1; }
+.grafico .eixo, .eixo { fill: var(--texto-2); font-size: 10px; font-family: var(--fonte); }
+.b-receita { fill: var(--escuro); } .b-despesa { fill: var(--laranja); }
+.area { fill: var(--laranja-4); } .linha { fill: none; stroke: var(--laranja); stroke-width: 2.5; } .ponto { fill: var(--branco); stroke: var(--laranja); stroke-width: 2; }
+.anel-fundo { fill: none; stroke: var(--laranja-4); stroke-width: 12; } .anel { fill: none; stroke: var(--laranja); stroke-width: 12; stroke-linecap: round; }
+.anel-valor { font-size: 32px; font-weight: 600; font-family: var(--fonte); fill: var(--texto); }
+.legenda-grafico { display: flex; gap: 16px; font-size: 11px; color: var(--texto-2); }
+.legenda-grafico b, .legenda b { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.segmentos { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--laranja-4); }
+.segmentos i { display: block; height: 100%; }
+.legenda { display: flex; gap: 18px; margin-top: 10px; font-size: 11px; color: var(--texto-2); flex-wrap: wrap; }
+.s-escuro { background: var(--escuro); } .s-laranja { background: var(--laranja); } .s-claro { background: var(--laranja-3); }
+.score { display: grid; grid-template-columns: 160px 1fr; gap: 24px; align-items: center; }
+.tabela tfoot td { font-weight: 600; border-top: 2px solid var(--linha); }
+.tabela .destaque td { background: var(--laranja-4); }
+.filtros input, .filtros select, .modal select, .modal input { border: 1px solid var(--linha); border-radius: 8px; padding: 9px 10px; background: var(--creme-2); font-size: 12px; min-width: 0; width: 100%; }
+
+.mini-card .acoes { flex-wrap: wrap; }

@@ -17,3 +17,21 @@ describe('fatura da compra', () => {
     expect(vencimentoDaFatura({ dia_vencimento: 31 }, '2026-02')).toBe('2026-02-28')
   })
 })
+
+import { emAbertoNoCartao, marcaDePagamento, resumoDaFatura } from './rules'
+import { l } from '../lancamento/fixtures'
+import { totaisDaCompetencia } from '../lancamento/rules'
+
+describe('pagamento de fatura', () => {
+  const k = { id: 5, nome: 'K', limite: 100000, dia_fechamento: 3, dia_vencimento: 10, conta_pagamento_id: 1, arquivado: 0 as const }
+  const compras = [l({ cartao_id: 5, conta_id: null, valor: 3000, data: '2026-11-10' }), l({ cartao_id: 5, conta_id: null, valor: 2000, data: '2026-11-20' })]
+  it('parcial, paga e limite em aberto', () => {
+    const pg = l({ valor: 1000, data: '2026-12-08', categoria_id: null, fatura_ref: marcaDePagamento(5, '2026-12') })
+    expect(resumoDaFatura(k, [...compras, pg], '2026-12')).toMatchObject({ total: 5000, pago: 1000, emAberto: 4000, situacao: 'parcial' })
+    expect(emAbertoNoCartao(k, [...compras, pg])).toBe(4000)
+  })
+  it('pagamento da fatura não conta como despesa do mês', () => {
+    const pg = l({ valor: 5000, data: '2026-11-25', fatura_ref: marcaDePagamento(5, '2026-12') })
+    expect(totaisDaCompetencia([...compras, pg], '2026-11').despesas).toBe(5000)
+  })
+})

@@ -28,7 +28,23 @@ src/domain/<entidade>/
   *.test.ts      testes das regras
 ```
 
-Entidades: `conta`, `categoria`, `lancamento` (com importação CSV), `cartao` (faturas), `receita`, `custo-fixo`, `divida` (parcelas), `orcamento`, `painel` (métricas do dashboard) e `analise` (IA).
+Entidades: `conta`, `categoria`, `lancamento` (com importação CSV), `cartao` (faturas e pagamento), `receita`, `custo-fixo` (geração do mês), `divida` (parcelas), `orcamento`, `painel` (métricas do dashboard), `relatorio` (relatório mensal com score de saúde e série anual) e `analise` (Radar IA).
+
+## Telas
+
+| Grupo | Tela | O que faz |
+|---|---|---|
+| Principal | Painel | saldo, receitas, despesas, poupança, heatmap de gastos, orçamentos, maiores categorias |
+| | Lançamentos | lista do mês com busca e filtros, criar/editar/excluir, pendentes, importação CSV |
+| Análise | Relatório mensal | score de saúde 0–100, comprometimento, essenciais × não essenciais, compromissos, reserva de emergência, fontes de renda, movimento por conta |
+| | Análise anual | receitas × despesas por mês, saldo acumulado, tabela do ano e categorias mês a mês |
+| | Radar IA | análise do mês pelo Claude Code ou Codex, com insights, plano e pontos cegos |
+| Cadastros | Contas e cartões | contas (principal, arquivar), cartões com limite, faturas e pagamento |
+| | Receitas | fontes recorrentes, pausar, registrar recebimento |
+| | Custos fixos | situação no mês (pago/pendente/não lançado), gerar lançamentos do mês |
+| | Dívidas | parcelas, pagar (lança na conta), ajustar parcela |
+| | Orçamentos | limite por categoria/mês, copiar do mês anterior |
+| | Categorias | cor, essencial, proteção contra excluir categoria em uso |
 
 Outras pastas:
 - `src/shared/` dinheiro em centavos e datas de calendário.

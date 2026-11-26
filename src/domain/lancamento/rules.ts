@@ -2,12 +2,12 @@ import type { Centavos } from '../../shared/dinheiro'
 import { competenciaDe, type Competencia, type DataISO } from '../../shared/data'
 import type { Lancamento, LancamentoDetalhado } from './model'
 
-/** Só conta para totais o que é receita/despesa efetiva: nem transferência, nem cancelado. */
-export const contaParaTotais = (l: Pick<Lancamento, 'tipo' | 'status'>) =>
-  l.tipo !== 'TRANSFERENCIA' && l.status !== 'CANCELADO'
+/** Só conta para totais o que é receita/despesa efetiva: nem transferência, nem cancelado, nem pagamento de fatura. */
+export const contaParaTotais = (l: Pick<Lancamento, 'tipo' | 'status'> & { fatura_ref?: string | null }) =>
+  l.tipo !== 'TRANSFERENCIA' && l.status !== 'CANCELADO' && !l.fatura_ref
 
 /** Confirmado = já pago. Pendentes entram em projeções, não em realizados. */
-export const confirmado = (l: Pick<Lancamento, 'tipo' | 'status'>) => contaParaTotais(l) && l.status === 'PAGO'
+export const confirmado = (l: Pick<Lancamento, 'tipo' | 'status'> & { fatura_ref?: string | null }) => contaParaTotais(l) && l.status === 'PAGO'
 
 export interface Totais {
   receitas: Centavos

@@ -13,6 +13,7 @@ import type { Orcamento } from '../orcamento/model'
 import type { Receita } from '../receita/model'
 import { totalPrevisto } from '../receita/rules'
 import type { Insight, ResultadoAnalise, ResumoFinanceiro } from './model'
+import { relatorioMensal } from '../relatorio/rules'
 
 const reais = (c: Centavos) => Math.round(c) / 100
 
@@ -39,9 +40,16 @@ export function montarResumo(e: EntradaResumo): ResumoFinanceiro {
   const em30 = new Date(`${e.hoje}T00:00:00Z`)
   em30.setUTCDate(em30.getUTCDate() + 30)
 
+  const rel = relatorioMensal(e)
+  const arred = (v: number | null) => (v == null ? null : Math.round(v * 1000) / 1000)
   return {
     competencia: c,
     moeda: 'BRL',
+    saude: {
+      score: rel.score.total, faixa: rel.score.faixa, comprometimento: arred(rel.comprometimento), taxaPoupanca: arred(rel.taxaPoupanca),
+      reservaEmMeses: rel.reserva.meses == null ? null : Math.round(rel.reserva.meses * 10) / 10,
+      essenciais: reais(rel.essenciais), naoEssenciais: reais(rel.naoEssenciais),
+    },
     meses: [-2, -1, 0].map((d) => {
       const k = deslocarCompetencia(c, d)
       const t = totaisDaCompetencia(e.lancamentos, k)

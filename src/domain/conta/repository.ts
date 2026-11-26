@@ -23,3 +23,17 @@ export async function definirPrincipal(id: number) {
 export async function arquivarConta(id: number, arquivada: boolean) {
   await (await banco()).execute('UPDATE contas SET arquivada = $2 WHERE id = $1', [id, arquivada ? 1 : 0])
 }
+
+export async function atualizarConta(id: number, c: NovaConta) {
+  await (await banco()).execute('UPDATE contas SET nome = $2, tipo = $3, saldo_inicial = $4 WHERE id = $1', [id, c.nome, c.tipo, c.saldo_inicial])
+}
+
+/** Conta com lançamentos não pode ser excluída (perderia histórico); arquive. */
+export async function excluirConta(id: number): Promise<'excluida' | 'tem-lancamentos'> {
+  const db = await banco()
+  const [{ n }] = await db.select<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM lancamentos WHERE conta_id = $1 OR conta_destino_id = $1', [id])
+  if (n > 0) return 'tem-lancamentos'
+  await db.execute('DELETE FROM contas WHERE id = $1', [id])
+  return 'excluida'
+}

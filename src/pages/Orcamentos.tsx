@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { formatarBRL, formatarPct, paraCentavos } from '../shared/dinheiro'
 import { competenciaDe, deslocarCompetencia, hoje, rotuloCompetencia } from '../shared/data'
-import { copiarOrcamentos, listarOrcamentos, salvarOrcamento } from '../domain/orcamento/repository'
+import { copiarOrcamentos, excluirOrcamento, listarOrcamentos, salvarOrcamento } from '../domain/orcamento/repository'
+import { BotaoExcluir } from '../ui/components/Modal'
+import { Vazio } from '../ui/components/Campos'
 import { progressoDosOrcamentos } from '../domain/orcamento/rules'
 import type { Orcamento } from '../domain/orcamento/model'
 import { despesaPorCategoria } from '../domain/lancamento/rules'
@@ -34,8 +36,13 @@ export function Orcamentos({ dados }: { dados: Dados }) {
           <h3>{formatarBRL(totalGasto)} de {formatarBRL(totalLimite)}</h3>
           <button className="botao secundario" onClick={async () => { await copiarOrcamentos(deslocarCompetencia(c, -1), c); carregar() }}>Copiar do mês anterior</button>
         </div>
+        {!progresso.length && <Vazio>Sem orçamentos neste mês. Defina um limite por categoria abaixo ou copie do mês anterior.</Vazio>}
         {progresso.map((p) => (
-          <Barra key={p.orcamento.id} rotulo={`${p.orcamento.categoria_nome} · ${formatarBRL(p.gasto)} de ${formatarBRL(p.orcamento.limite)}`} direita={formatarPct(p.usado)} fracao={p.usado} estourada={p.estourado} />
+          <div key={p.orcamento.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center' }}>
+            <Barra rotulo={`${p.orcamento.categoria_nome} · ${formatarBRL(p.gasto)} de ${formatarBRL(p.orcamento.limite)}`} direita={p.estourado ? `estourou ${formatarBRL(-p.restante)}` : `${formatarPct(p.usado)} · sobra ${formatarBRL(p.restante)}`} fracao={p.usado} estourada={p.estourado} />
+            <button className="aba" onClick={() => { setCat(String(p.orcamento.categoria_id)); setLimite((p.orcamento.limite / 100).toFixed(2).replace('.', ',')) }}>editar</button>
+            <BotaoExcluir onConfirmar={async () => { await excluirOrcamento(p.orcamento.id); carregar() }} />
+          </div>
         ))}
         <div className="form" style={{ gridTemplateColumns: '2fr 1fr auto', marginTop: 12 }}>
           <label className="campo">Categoria
@@ -44,7 +51,7 @@ export function Orcamentos({ dados }: { dados: Dados }) {
               {dados.categorias.filter((k) => k.tipo === 'DESPESA').map((k) => <option key={k.id} value={k.id}>{k.nome}</option>)}
             </select>
           </label>
-          <label className="campo">Limite (R$)<input value={limite} onChange={(e) => setLimite(e.target.value)} /></label>
+          <label className="campo">Limite mensal (R$)<input value={limite} onChange={(e) => setLimite(e.target.value)} /></label>
           <button className="botao" onClick={async () => {
             const v = paraCentavos(limite)
             if (!cat || v == null || v <= 0) return

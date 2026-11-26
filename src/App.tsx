@@ -4,32 +4,45 @@ import { useDados } from './ui/useDados'
 import { Painel } from './pages/Painel'
 import { Lancamentos } from './pages/Lancamentos'
 import { Contas } from './pages/Contas'
+import { Receitas, CustosFixos } from './pages/Recorrentes'
 import { Dividas } from './pages/Dividas'
 import { Orcamentos } from './pages/Orcamentos'
+import { Categorias } from './pages/Categorias'
+import { Relatorio } from './pages/Relatorio'
+import { Anual } from './pages/Anual'
 import { Analises } from './pages/Analises'
 import { Ajustes } from './pages/Ajustes'
 
-type Pagina = 'painel' | 'lancamentos' | 'contas' | 'dividas' | 'orcamentos' | 'analises' | 'ajustes'
-const MENU: { grupo: string; itens: { id: Pagina; rotulo: string }[] }[] = [
-  { grupo: 'Principal', itens: [{ id: 'painel', rotulo: 'Painel' }, { id: 'lancamentos', rotulo: 'Lançamentos' }, { id: 'analises', rotulo: 'Análises' }] },
-  { grupo: 'Cadastros', itens: [{ id: 'contas', rotulo: 'Contas' }, { id: 'dividas', rotulo: 'Dívidas' }, { id: 'orcamentos', rotulo: 'Orçamentos' }] },
+type Pagina = keyof typeof Icones & string
+const MENU: { grupo: string; itens: { id: Exclude<Pagina, 'logo'>; rotulo: string }[] }[] = [
+  { grupo: 'Principal', itens: [{ id: 'painel', rotulo: 'Painel' }, { id: 'lancamentos', rotulo: 'Lançamentos' }] },
+  { grupo: 'Análise', itens: [{ id: 'relatorio', rotulo: 'Relatório mensal' }, { id: 'anual', rotulo: 'Análise anual' }, { id: 'analises', rotulo: 'Radar IA' }] },
+  { grupo: 'Cadastros', itens: [
+    { id: 'contas', rotulo: 'Contas e cartões' }, { id: 'receitas', rotulo: 'Receitas' }, { id: 'custos', rotulo: 'Custos fixos' },
+    { id: 'dividas', rotulo: 'Dívidas' }, { id: 'orcamentos', rotulo: 'Orçamentos' }, { id: 'categorias', rotulo: 'Categorias' },
+  ] },
   { grupo: 'Sistema', itens: [{ id: 'ajustes', rotulo: 'Ajustes' }] },
 ]
 
 export default function App() {
-  const [pagina, setPagina] = useState<Pagina>('painel')
+  const [pagina, setPagina] = useState<Exclude<Pagina, 'logo'>>('painel')
   const { dados, erro, recarregar } = useDados()
 
   let corpo: ReactNode = <div className="secao sutil">{erro ?? 'Carregando…'}</div>
   if (dados) {
-    const props = { dados, recarregar }
+    const p = { dados, recarregar }
     corpo = {
-      painel: <Painel dados={dados} />,
-      lancamentos: <Lancamentos {...props} />,
-      contas: <Contas {...props} />,
-      dividas: <Dividas {...props} />,
-      orcamentos: <Orcamentos dados={dados} />,
+      painel: <Painel dados={dados} ir={setPagina} />,
+      lancamentos: <Lancamentos {...p} />,
+      relatorio: <Relatorio dados={dados} />,
+      anual: <Anual dados={dados} />,
       analises: <Analises dados={dados} />,
+      contas: <Contas {...p} />,
+      receitas: <Receitas {...p} />,
+      custos: <CustosFixos {...p} />,
+      dividas: <Dividas {...p} />,
+      orcamentos: <Orcamentos dados={dados} />,
+      categorias: <Categorias {...p} />,
       ajustes: <Ajustes />,
     }[pagina]
   }
@@ -53,7 +66,7 @@ export default function App() {
         ))}
         <div className="sidebar-rodape"><div className="avatar">G</div><div>Gelton<small>banco local</small></div></div>
       </aside>
-      <main className="conteudo"><div className="painel">{corpo}</div></main>
+      <main className="conteudo"><div className="painel" key={pagina}>{corpo}</div></main>
     </div>
   )
 }

@@ -17,23 +17,23 @@ export async function todosLancamentos(): Promise<LancamentoDetalhado[]> {
 export async function criarLancamento(l: NovoLancamento): Promise<number | undefined> {
   const db = await banco()
   const r = await db.execute(
-    `INSERT INTO lancamentos (descricao, valor, tipo, status, data, conta_id, conta_destino_id, cartao_id, categoria_id, parcela_id, origem, id_externo, observacao)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+    `INSERT INTO lancamentos (descricao, valor, tipo, status, data, conta_id, conta_destino_id, cartao_id, categoria_id, parcela_id, origem, id_externo, observacao, fatura_ref)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
     [l.descricao, l.valor, l.tipo, l.status, l.data, l.conta_id, l.conta_destino_id, l.cartao_id, l.categoria_id,
-      l.parcela_id ?? null, l.origem ?? 'MANUAL', l.id_externo ?? null, l.observacao],
+      l.parcela_id ?? null, l.origem ?? 'MANUAL', l.id_externo ?? null, l.observacao, l.fatura_ref ?? null],
   )
   return r.lastInsertId
 }
 
-/** Insere ignorando linhas já importadas (mesmo id_externo). Retorna quantas entraram. */
+/** Insere em lote ignorando os que já existem (mesmo id_externo). Retorna quantos entraram. */
 export async function importarLancamentos(ls: NovoLancamento[]): Promise<number> {
   const db = await banco()
   let n = 0
   for (const l of ls) {
     const r = await db.execute(
-      `INSERT OR IGNORE INTO lancamentos (descricao, valor, tipo, status, data, conta_id, categoria_id, origem, id_externo)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'IMPORTACAO',$8)`,
-      [l.descricao, l.valor, l.tipo, l.status, l.data, l.conta_id, l.categoria_id, l.id_externo ?? null],
+      `INSERT OR IGNORE INTO lancamentos (descricao, valor, tipo, status, data, conta_id, cartao_id, categoria_id, origem, id_externo)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [l.descricao, l.valor, l.tipo, l.status, l.data, l.conta_id, l.cartao_id, l.categoria_id, l.origem ?? 'IMPORTACAO', l.id_externo ?? null],
     )
     n += r.rowsAffected
   }
@@ -42,5 +42,24 @@ export async function importarLancamentos(ls: NovoLancamento[]): Promise<number>
 
 export async function excluirLancamento(id: number) {
   const db = await banco()
+  await db.execute('DELETE FROM lancamentos WHERE id = $1', [id])
+}
+
+export async function atualizarLancamento(id: number, l: NovoLancamento) {
+  await (await banco()).execute(
+    `UPDATE lancamentos SET descricao=$2, valor=$3, tipo=$4, status=$5, data=$6, conta_id=$7, conta_destino_id=$8,
+     cartao_id=$9, categoria_id=$10, observacao=$11 WHERE id = $1`,
+    [id, l.descricao, l.valor, l.tipo, l.status, l.data, l.conta_id, l.conta_destino_id, l.cartao_id, l.categoria_id, l.observacao],
+  )
+}
+
+/** Excluir o lançamento de uma parcela paga reabre a parcela. */
+export async function excluirLancamentoComVinculos(id: number) {
+  const db = await banco()
+  await db.execute('UPDATE parcelas SET pago_em = NULL, valor_pago = NULL WHERE id = (SELECT parcela_id FROM lancamentos WHERE id = $1)', [id])
+  await db.execute(
+    `UPDATE dividas SET status = 'ATIVA' WHERE status = 'QUITADA' AND id = (SELECT p.divida_id FROM parcelas p JOIN lancamentos l ON l.parcela_id = p.id WHERE l.id = $1)`,
+    [id],
+  )
   await db.execute('DELETE FROM lancamentos WHERE id = $1', [id])
 }

@@ -1,45 +1,82 @@
 import { useMemo, useState } from 'react'
 import { formatarBRL } from '../shared/dinheiro'
 import { competenciaDe, deslocarCompetencia, hoje, rotuloCompetencia } from '../shared/data'
-import { validarLancamento, type CamposLancamento, type Erros } from '../domain/lancamento/form'
-import { criarLancamento, excluirLancamento, importarLancamentos } from '../domain/lancamento/repository'
+import { validarLancamento, type CamposLancamento } from '../domain/lancamento/form'
+import { atualizarLancamento, criarLancamento, excluirLancamentoComVinculos, importarLancamentos } from '../domain/lancamento/repository'
 import { lerCSV } from '../domain/lancamento/importacao'
 import { totaisDaCompetencia } from '../domain/lancamento/rules'
+import type { LancamentoDetalhado } from '../domain/lancamento/model'
+import { Modal, BotaoExcluir } from '../ui/components/Modal'
+import { Campo, Opcoes, Vazio } from '../ui/components/Campos'
+import { useForm } from '../ui/useForm'
 import type { Dados } from '../ui/useDados'
 
 const vazio = (): CamposLancamento => ({
   descricao: '', valor: '', tipo: 'DESPESA', data: hoje(), conta_id: '', conta_destino_id: '', cartao_id: '', categoria_id: '', pendente: false,
 })
+const paraCampos = (l: LancamentoDetalhado): CamposLancamento => ({
+  descricao: l.descricao, valor: (l.valor / 100).toFixed(2).replace('.', ','), tipo: l.tipo, data: l.data,
+  conta_id: l.conta_id ? String(l.conta_id) : '', conta_destino_id: l.conta_destino_id ? String(l.conta_destino_id) : '',
+  cartao_id: l.cartao_id ? String(l.cartao_id) : '', categoria_id: l.categoria_id ? String(l.categoria_id) : '', pendente: l.status === 'PENDENTE',
+})
 
 export function Lancamentos({ dados, recarregar }: { dados: Dados; recarregar: () => void }) {
   const [c, setC] = useState(competenciaDe(hoje()))
-  const [f, setF] = useState<CamposLancamento>(vazio)
-  const [erros, setErros] = useState<Erros<CamposLancamento>>({})
+  const [busca, setBusca] = useState('')
+  const [fTipo, setFTipo] = useState('')
+  const [fCat, setFCat] = useState('')
+  const [fOrigem, setFOrigem] = useState('')
+  const [editando, setEditando] = useState<number | 'novo' | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
-  const lista = useMemo(() => dados.lancamentos.filter((l) => l.data.startsWith(c)), [dados, c])
-  const t = totaisDaCompetencia(dados.lancamentos, c)
-  const set = (k: keyof CamposLancamento) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value })
-  const cats = dados.categorias.filter((k) => k.tipo === (f.tipo === 'RECEITA' ? 'RECEITA' : 'DESPESA'))
+  const form = useForm<CamposLancamento>(vazio())
+  const f = form.valores
 
-  async function salvar() {
+  const lista = useMemo(() => {
+    const q = busca.trim().toLowerCase()
+    return dados.lancamentos.filter((l) =>
+      l.data.startsWith(c) &&
+      (!q || l.descricao.toLowerCase().includes(q) || (l.categoria_nome ?? '').toLowerCase().includes(q)) &&
+      (!fTipo || (fTipo === 'PENDENTE' ? l.status === 'PENDENTE' : l.tipo === fTipo)) &&
+      (!fCat || String(l.categoria_id) === fCat) &&
+      (!fOrigem || (fOrigem.startsWith('k') ? `k${l.cartao_id}` === fOrigem : `c${l.conta_id}` === fOrigem && !l.cartao_id)))
+  }, [dados, c, busca, fTipo, fCat, fOrigem])
+  const t = totaisDaCompetencia(dados.lancamentos, c)
+  const pendentes = dados.lancamentos.filter((l) => l.data.startsWith(c) && l.status === 'PENDENTE')
+  const cats = dados.categorias.filter((k) => k.tipo === (f.tipo === 'RECEITA' ? 'RECEITA' : 'DESPESA'))
+  const contasAtivas = dados.contas.filter((x) => !x.arquivada)
+  const cartoesAtivos = dados.cartoes.filter((x) => !x.arquivado)
+
+  function abrir(l?: LancamentoDetalhado) {
+    form.reiniciar(l ? paraCampos(l) : { ...vazio(), conta_id: String(contasAtivas.find((x) => x.principal)?.id ?? '') })
+    setEditando(l ? l.id : 'novo')
+  }
+  async function salvar(continuar = false) {
     const r = validarLancamento(f)
-    if (!r.ok) return setErros(r.erros)
-    await criarLancamento(r.valor)
-    setErros({})
-    setF({ ...vazio(), tipo: f.tipo, conta_id: f.conta_id, cartao_id: f.cartao_id })
+    if (!r.ok) return form.setErros(r.erros)
+    if (editando === 'novo') await criarLancamento(r.valor)
+    else if (editando != null) await atualizarLancamento(editando, r.valor)
+    recarregar()
+    if (continuar) form.reiniciar({ ...vazio(), tipo: f.tipo, data: f.data, conta_id: f.conta_id, cartao_id: f.cartao_id })
+    else setEditando(null)
+  }
+  async function marcarPago(l: LancamentoDetalhado) {
+    await atualizarLancamento(l.id, { ...l, status: 'PAGO' })
     recarregar()
   }
-
   async function importar(arquivo: File) {
-    const conta = Number(f.conta_id || dados.contas[0]?.id)
+    const conta = Number(contasAtivas.find((x) => x.principal)?.id ?? contasAtivas[0]?.id)
     if (!conta) return setAviso('Cadastre uma conta antes de importar.')
     const r = lerCSV(await arquivo.text(), conta)
     const n = await importarLancamentos(
       r.linhas.map((l) => ({ ...l, status: 'PAGO', conta_id: conta, conta_destino_id: null, cartao_id: null, categoria_id: null, observacao: null })),
     )
-    setAviso(`${n} lançamentos importados, ${r.linhas.length - n} já existiam, ${r.ignoradas.length} linhas ignoradas.`)
+    setAviso(`${n} lançamentos importados na conta principal, ${r.linhas.length - n} já existiam, ${r.ignoradas.length} linhas ignoradas.${r.ignoradas.length ? ' ' + r.ignoradas.slice(0, 3).map((i) => `linha ${i.linha}: ${i.motivo}`).join('; ') : ''}`)
     recarregar()
   }
+  const origem = (l: LancamentoDetalhado) =>
+    l.tipo === 'TRANSFERENCIA'
+      ? `${dados.contas.find((x) => x.id === l.conta_id)?.nome} → ${dados.contas.find((x) => x.id === l.conta_destino_id)?.nome}`
+      : l.cartao_id ? dados.cartoes.find((x) => x.id === l.cartao_id)?.nome : dados.contas.find((x) => x.id === l.conta_id)?.nome
 
   return (
     <>
@@ -55,65 +92,89 @@ export function Lancamentos({ dados, recarregar }: { dados: Dados; recarregar: (
         <div className="card"><h3>Receitas</h3><div className="valor pos">{formatarBRL(t.receitas)}</div></div>
         <div className="card"><h3>Despesas</h3><div className="valor">{formatarBRL(t.despesas)}</div></div>
         <div className="card"><h3>Resultado</h3><div className="valor">{formatarBRL(t.resultado)}</div></div>
-        <div className="card"><h3>Lançamentos</h3><div className="valor">{lista.length}</div></div>
+        <div className="card"><h3>Pendentes</h3><div className="valor">{pendentes.length}</div><span className="sutil">{formatarBRL(pendentes.reduce((s, l) => s + l.valor, 0))}</span></div>
       </div>
       <div className="secao">
         <div className="secao-topo">
-          <h3>Novo lançamento</h3>
-          <label className="botao secundario">Importar CSV<input type="file" accept=".csv,text/csv" hidden onChange={(e) => e.target.files?.[0] && importar(e.target.files[0])} /></label>
+          <h3>{lista.length} lançamentos</h3>
+          <div className="acoes">
+            <label className="botao secundario">Importar CSV<input type="file" accept=".csv,text/csv" hidden onChange={(e) => { if (e.target.files?.[0]) importar(e.target.files[0]); e.target.value = '' }} /></label>
+            <button className="botao" onClick={() => abrir()}>Novo lançamento</button>
+          </div>
         </div>
         {aviso && <div className="aviso">{aviso}</div>}
-        <div className="form">
-          <label className="campo">Tipo
-            <select value={f.tipo} onChange={set('tipo')}>
-              <option value="DESPESA">Despesa</option><option value="RECEITA">Receita</option><option value="TRANSFERENCIA">Transferência</option>
-            </select>
-          </label>
-          <label className="campo">Descrição<input value={f.descricao} onChange={set('descricao')} />{erros.descricao && <span className="erro">{erros.descricao}</span>}</label>
-          <label className="campo">Valor (R$)<input value={f.valor} onChange={set('valor')} placeholder="0,00" />{erros.valor && <span className="erro">{erros.valor}</span>}</label>
-          <label className="campo">Data<input type="date" value={f.data} onChange={set('data')} />{erros.data && <span className="erro">{erros.data}</span>}</label>
-          <label className="campo">{f.tipo === 'TRANSFERENCIA' ? 'Conta de origem' : 'Conta'}
-            <select value={f.conta_id} onChange={set('conta_id')}><option value="">—</option>{dados.contas.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}</select>
-            {erros.conta_id && <span className="erro">{erros.conta_id}</span>}
-          </label>
-          {f.tipo === 'TRANSFERENCIA' ? (
-            <label className="campo">Conta de destino
-              <select value={f.conta_destino_id} onChange={set('conta_destino_id')}><option value="">—</option>{dados.contas.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}</select>
-              {erros.conta_destino_id && <span className="erro">{erros.conta_destino_id}</span>}
-            </label>
-          ) : (
-            <>
-              {f.tipo === 'DESPESA' && (
-                <label className="campo">Cartão
-                  <select value={f.cartao_id} onChange={set('cartao_id')}><option value="">—</option>{dados.cartoes.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}</select>
-                </label>
-              )}
-              <label className="campo">Categoria
-                <select value={f.categoria_id} onChange={set('categoria_id')}><option value="">—</option>{cats.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}</select>
-              </label>
-            </>
-          )}
-          <button className="botao" onClick={salvar}>Adicionar</button>
+        <div className="filtros">
+          <input className="busca" placeholder="Buscar descrição ou categoria" value={busca} onChange={(e) => setBusca(e.target.value)} />
+          <select value={fTipo} onChange={(e) => setFTipo(e.target.value)}>
+            <option value="">Todos os tipos</option><option value="DESPESA">Despesas</option><option value="RECEITA">Receitas</option><option value="TRANSFERENCIA">Transferências</option><option value="PENDENTE">Só pendentes</option>
+          </select>
+          <select value={fCat} onChange={(e) => setFCat(e.target.value)}><Opcoes itens={dados.categorias} vazio="Todas as categorias" /></select>
+          <select value={fOrigem} onChange={(e) => setFOrigem(e.target.value)}>
+            <option value="">Contas e cartões</option>
+            {dados.contas.map((x) => <option key={`c${x.id}`} value={`c${x.id}`}>{x.nome}</option>)}
+            {dados.cartoes.map((x) => <option key={`k${x.id}`} value={`k${x.id}`}>{x.nome} (cartão)</option>)}
+          </select>
         </div>
+        {lista.length ? (
+          <table className="tabela">
+            <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Conta / cartão</th><th style={{ textAlign: 'right' }}>Valor</th><th /></tr></thead>
+            <tbody>
+              {lista.map((l) => (
+                <tr key={l.id} style={{ opacity: l.status === 'CANCELADO' ? 0.4 : 1 }}>
+                  <td>{l.data.split('-').reverse().slice(0, 2).join('/')}</td>
+                  <td>
+                    {l.descricao}{' '}
+                    {l.status === 'PENDENTE' && <span className="tag laranja">pendente</span>}{' '}
+                    {l.fatura_ref && <span className="tag">fatura</span>}{' '}
+                    {l.origem === 'IMPORTACAO' && <span className="tag">importado</span>}
+                  </td>
+                  <td className="sutil">{l.categoria_nome ?? '—'}</td>
+                  <td className="sutil">{origem(l)}</td>
+                  <td className={`num ${l.tipo === 'RECEITA' ? 'pos' : 'neg'}`}>{l.tipo === 'RECEITA' ? '+' : l.tipo === 'DESPESA' ? '−' : '⇄'} {formatarBRL(l.valor)}</td>
+                  <td>
+                    <div className="acoes">
+                      {l.status === 'PENDENTE' && <button className="aba ativa" onClick={() => marcarPago(l)}>pagar</button>}
+                      {!l.fatura_ref && <button className="aba" onClick={() => abrir(l)}>editar</button>}
+                      <BotaoExcluir onConfirmar={async () => { await excluirLancamentoComVinculos(l.id); recarregar() }} />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <Vazio>Nenhum lançamento {busca || fTipo || fCat || fOrigem ? 'com esses filtros' : 'neste mês'}.</Vazio>}
       </div>
-      <div className="secao">
-        <table className="tabela">
-          <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Origem</th><th style={{ textAlign: 'right' }}>Valor</th><th /></tr></thead>
-          <tbody>
-            {lista.map((l) => (
-              <tr key={l.id} style={{ opacity: l.status === 'PAGO' ? 1 : 0.55 }}>
-                <td>{l.data.split('-').reverse().slice(0, 2).join('/')}</td>
-                <td>{l.descricao}{l.status === 'PENDENTE' && <span className="sutil"> · pendente</span>}</td>
-                <td className="sutil">{l.categoria_nome ?? '—'}</td>
-                <td className="sutil">{l.cartao_id ? dados.cartoes.find((x) => x.id === l.cartao_id)?.nome : dados.contas.find((x) => x.id === l.conta_id)?.nome}</td>
-                <td className={`num ${l.tipo === 'RECEITA' ? 'pos' : 'neg'}`}>{l.tipo === 'RECEITA' ? '+' : l.tipo === 'DESPESA' ? '−' : '⇄'} {formatarBRL(l.valor)}</td>
-                <td className="num"><button className="aba" onClick={async () => { await excluirLancamento(l.id); recarregar() }}>excluir</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!lista.length && <p className="sutil">Nenhum lançamento neste mês.</p>}
-      </div>
+
+      <Modal
+        titulo={editando === 'novo' ? 'Novo lançamento' : 'Editar lançamento'}
+        aberto={editando != null}
+        fechar={() => setEditando(null)}
+        rodape={<>
+          {editando === 'novo' && <button className="botao secundario" onClick={() => salvar(true)}>Salvar e adicionar outro</button>}
+          <button className="botao" onClick={() => salvar()}>Salvar</button>
+        </>}
+      >
+        <Campo rotulo="Tipo">
+          <select {...form.campo('tipo')}>
+            <option value="DESPESA">Despesa</option><option value="RECEITA">Receita</option><option value="TRANSFERENCIA">Transferência</option>
+          </select>
+        </Campo>
+        <Campo rotulo="Data" erro={form.erros.data}><input type="date" {...form.campo('data')} /></Campo>
+        <Campo rotulo="Descrição" erro={form.erros.descricao} largo><input autoFocus {...form.campo('descricao')} /></Campo>
+        <Campo rotulo="Valor (R$)" erro={form.erros.valor}><input placeholder="0,00" {...form.campo('valor')} /></Campo>
+        {f.tipo !== 'TRANSFERENCIA' && (
+          <Campo rotulo="Categoria"><select {...form.campo('categoria_id')}><Opcoes itens={cats} /></select></Campo>
+        )}
+        <Campo rotulo={f.tipo === 'TRANSFERENCIA' ? 'Conta de origem' : 'Conta'} erro={form.erros.conta_id}>
+          <select {...form.campo('conta_id')}><Opcoes itens={contasAtivas} /></select>
+        </Campo>
+        {f.tipo === 'TRANSFERENCIA' ? (
+          <Campo rotulo="Conta de destino" erro={form.erros.conta_destino_id}><select {...form.campo('conta_destino_id')}><Opcoes itens={contasAtivas} /></select></Campo>
+        ) : f.tipo === 'DESPESA' ? (
+          <Campo rotulo="Cartão (no lugar da conta)" erro={form.erros.cartao_id}><select {...form.campo('cartao_id')}><Opcoes itens={cartoesAtivos} /></select></Campo>
+        ) : <div />}
+        <label className="check" style={{ gridColumn: '1 / -1' }}><input type="checkbox" {...form.marcar('pendente')} /> Ainda não foi pago (fica pendente e não entra nos totais)</label>
+      </Modal>
     </>
   )
 }

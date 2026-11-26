@@ -20,9 +20,12 @@ export interface Lancamento {
   origem: OrigemLancamento
   id_externo: string | null
   observacao: string | null
+  /** `<cartao_id>:<AAAA-MM>` quando o lançamento é o pagamento de uma fatura. */
+  fatura_ref: string | null
 }
 
-export type NovoLancamento = Omit<Lancamento, 'id' | 'origem' | 'id_externo' | 'parcela_id'> & {
+export type NovoLancamento = Omit<Lancamento, 'id' | 'origem' | 'id_externo' | 'parcela_id' | 'fatura_ref'> & {
+  fatura_ref?: string | null
   origem?: OrigemLancamento
   id_externo?: string | null
   parcela_id?: number | null

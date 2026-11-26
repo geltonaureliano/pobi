@@ -48,7 +48,7 @@ export function idExterno(contaId: number, d: string, descricao: string, valor: 
 }
 
 export function lerCSV(texto: string, contaId: number): ResultadoImportacao {
-  const linhas = texto.replace(/^﻿/, '').split(/\r?\n/).filter((l) => l.trim())
+  const linhas = texto.replace(/^\uFEFF/, '').split(/\r?\n/).filter((l) => l.trim())
   if (!linhas.length) return { linhas: [], ignoradas: [] }
   const sep = (linhas[0].match(/;/g)?.length ?? 0) >= (linhas[0].match(/,/g)?.length ?? 0) ? ';' : ','
   const cab = dividir(linhas[0], sep).map(normalizar)

@@ -10,6 +10,12 @@ fn migracoes() -> Vec<Migration> {
         description: "estrutura inicial",
         sql: include_str!("../migrations/001_init.sql"),
         kind: MigrationKind::Up,
+    },
+    Migration {
+        version: 2,
+        description: "pagamento de fatura e pausa de recorrentes",
+        sql: include_str!("../migrations/002_pagamento_fatura.sql"),
+        kind: MigrationKind::Up,
     }]
 }
 
