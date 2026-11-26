@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { formatarBRL } from '../shared/dinheiro'
 import { validarConta } from '../domain/conta/form'
 import { arquivarConta, atualizarConta, criarConta, definirPrincipal, excluirConta } from '../domain/conta/repository'
 import type { ContaComSaldo, TipoConta } from '../domain/conta/model'
@@ -7,6 +6,7 @@ import { saldoTotal } from '../domain/conta/rules'
 import { Modal, BotaoExcluir } from '../ui/components/Modal'
 import { Campo, Vazio, Texto, Moeda, Selecao } from '../ui/components/Campos'
 import { useForm } from '../ui/useForm'
+import { Dinheiro } from '../ui/components/Dinheiro'
 import type { Dados } from '../ui/useDados'
 
 const TIPOS: { id: TipoConta; nome: string }[] = [
@@ -34,7 +34,7 @@ export function Contas({ dados, recarregar }: { dados: Dados; recarregar: () => 
   }
   return (
     <>
-      <div className="topo"><h1>Contas</h1><span className="sutil">patrimônio em contas {formatarBRL(saldoTotal(dados.contas))}</span></div>
+      <div className="topo"><h1>Contas</h1><span className="sutil">patrimônio em contas <Dinheiro valor={saldoTotal(dados.contas)} /></span></div>
       {aviso && <div className="secao"><div className="aviso">{aviso}</div></div>}
       <div className="secao">
         <div className="secao-topo"><h3>Contas</h3><button className="botao" onClick={() => abrirConta()}>Nova conta</button></div>
@@ -43,7 +43,7 @@ export function Contas({ dados, recarregar }: { dados: Dados; recarregar: () => 
             {ativas.map((c) => (
               <div className="mini-card" key={c.id}>
                 <div className="linha-topo"><strong>{c.nome}</strong>{c.principal ? <span className="tag laranja">principal</span> : <span className="tag">{TIPOS.find((t) => t.id === c.tipo)?.nome}</span>}</div>
-                <div className="valor-m">{formatarBRL(c.saldo)}</div>
+                <div className="valor-m"><Dinheiro valor={c.saldo} animar /></div>
                 <div className="acoes" style={{ justifyContent: 'flex-start' }}>
                   <button className="aba" onClick={() => abrirConta(c)}>editar</button>
                   {!c.principal && <button className="aba" onClick={async () => { await definirPrincipal(c.id); recarregar() }}>principal</button>}

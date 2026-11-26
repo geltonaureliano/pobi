@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
-import { formatarBRL, formatarCompacto, formatarPct } from '../shared/dinheiro'
+import { formatarCompacto, formatarPct } from '../shared/dinheiro'
 import { competenciaDe, hoje, rotuloMes } from '../shared/data'
 import { categoriasNoAno, serieAnual } from '../domain/relatorio/rules'
 import { BarrasMensais, LinhaAcumulada } from '../ui/components/Graficos'
+import { Dinheiro } from '../ui/components/Dinheiro'
 import type { Dados } from '../ui/useDados'
 
 export function Anual({ dados }: { dados: Dados }) {
@@ -22,9 +23,9 @@ export function Anual({ dados }: { dados: Dados }) {
         </div>
       </div>
       <div className="cards">
-        <div className="card"><h3>Receitas no ano</h3><span className="badge">média {formatarBRL(s.mediaReceitas)}</span><div className="valor">{formatarBRL(s.receitas)}</div></div>
-        <div className="card"><h3>Despesas no ano</h3><span className="badge">média {formatarBRL(s.mediaDespesas)}</span><div className="valor">{formatarBRL(s.despesas)}</div></div>
-        <div className="card"><h3>Saldo do ano</h3><span className={`badge ${s.saldo >= 0 ? 'bom' : 'ruim'}`}>{s.mesesComDados} meses com dados</span><div className="valor">{formatarBRL(s.saldo)}</div></div>
+        <div className="card"><h3>Receitas no ano</h3><span className="badge">média <Dinheiro valor={s.mediaReceitas} /></span><div className="valor"><Dinheiro valor={s.receitas} animar /></div></div>
+        <div className="card"><h3>Despesas no ano</h3><span className="badge">média <Dinheiro valor={s.mediaDespesas} /></span><div className="valor"><Dinheiro valor={s.despesas} animar /></div></div>
+        <div className="card"><h3>Saldo do ano</h3><span className={`badge ${s.saldo >= 0 ? 'bom' : 'ruim'}`}>{s.mesesComDados} meses com dados</span><div className="valor"><Dinheiro valor={s.saldo} animar /></div></div>
         <div className="card"><h3>Taxa de poupança</h3><span className={`badge ${s.taxaPoupanca != null && s.taxaPoupanca >= 0.2 ? 'bom' : ''}`}>meta 20%</span><div className="valor">{s.taxaPoupanca == null ? '—' : formatarPct(s.taxaPoupanca)}</div></div>
       </div>
       <div className="secao">
@@ -45,14 +46,14 @@ export function Anual({ dados }: { dados: Dados }) {
           <tbody>{s.meses.map((m) => (
             <tr key={m.competencia} className={m.competencia === atual ? 'destaque' : ''}>
               <td>{rotuloMes(m.competencia)}</td>
-              <td className="num pos">{formatarBRL(m.receitas)}</td>
-              <td className="num">{formatarBRL(m.despesas)}</td>
-              <td className="num" style={{ color: m.saldo < 0 ? 'var(--vermelho)' : undefined }}>{formatarBRL(m.saldo)}</td>
-              <td className="num">{formatarBRL(m.acumulado)}</td>
+              <td className="num pos"><Dinheiro valor={m.receitas} tom="pos" /></td>
+              <td className="num"><Dinheiro valor={m.despesas} /></td>
+              <td className="num" style={{ color: m.saldo < 0 ? 'var(--vermelho)' : undefined }}><Dinheiro valor={m.saldo} /></td>
+              <td className="num"><Dinheiro valor={m.acumulado} /></td>
               <td className="num sutil">{m.receitas ? formatarPct(m.saldo / m.receitas) : '—'}</td>
             </tr>
           ))}</tbody>
-          <tfoot><tr><td>TOTAL</td><td className="num">{formatarBRL(s.receitas)}</td><td className="num">{formatarBRL(s.despesas)}</td><td className="num">{formatarBRL(s.saldo)}</td><td /><td className="num">{s.taxaPoupanca == null ? '—' : formatarPct(s.taxaPoupanca)}</td></tr></tfoot>
+          <tfoot><tr><td>TOTAL</td><td className="num"><Dinheiro valor={s.receitas} /></td><td className="num"><Dinheiro valor={s.despesas} /></td><td className="num"><Dinheiro valor={s.saldo} /></td><td /><td className="num">{s.taxaPoupanca == null ? '—' : formatarPct(s.taxaPoupanca)}</td></tr></tfoot>
         </table>
       </div>
       <div className="secao">

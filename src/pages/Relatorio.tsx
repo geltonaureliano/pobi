@@ -7,6 +7,7 @@ import { efeitoNaConta } from '../domain/lancamento/rules'
 import { Anel, Segmentos } from '../ui/components/Graficos'
 import { Barra } from '../ui/components/Barra'
 import { Vazio } from '../ui/components/Campos'
+import { Dinheiro } from '../ui/components/Dinheiro'
 import type { Dados } from '../ui/useDados'
 
 export function Relatorio({ dados }: { dados: Dados }) {
@@ -36,9 +37,9 @@ export function Relatorio({ dados }: { dados: Dados }) {
         </div>
       </div>
       <div className="cards">
-        <div className="card"><h3>Receitas</h3><span className="badge">prevista {formatarBRL(r.receitaPrevista)}</span><div className="valor">{formatarBRL(r.receitas)}</div></div>
-        <div className="card"><h3>Despesas</h3><span className="badge">{formatarBRL(r.essenciais)} essenciais</span><div className="valor">{formatarBRL(r.despesas)}</div></div>
-        <div className="card"><h3>Sobra</h3><span className={`badge ${r.sobra >= 0 ? 'bom' : 'ruim'}`}>{r.taxaPoupanca == null ? 'sem receita' : `${formatarPct(r.taxaPoupanca)} da receita`}</span><div className="valor">{formatarBRL(r.sobra)}</div></div>
+        <div className="card"><h3>Receitas</h3><span className="badge">prevista <Dinheiro valor={r.receitaPrevista} /></span><div className="valor"><Dinheiro valor={r.receitas} animar /></div></div>
+        <div className="card"><h3>Despesas</h3><span className="badge"><Dinheiro valor={r.essenciais} /> essenciais</span><div className="valor"><Dinheiro valor={r.despesas} animar /></div></div>
+        <div className="card"><h3>Sobra</h3><span className={`badge ${r.sobra >= 0 ? 'bom' : 'ruim'}`}>{r.taxaPoupanca == null ? 'sem receita' : `${formatarPct(r.taxaPoupanca)} da receita`}</span><div className="valor"><Dinheiro valor={r.sobra} animar /></div></div>
         <div className="card"><h3>Comprometimento</h3><span className={`badge ${r.comprometimento == null ? '' : r.comprometimento <= 0.3 ? 'bom' : r.comprometimento > 0.5 ? 'ruim' : ''}`}>fixos + parcelas</span><div className="valor">{r.comprometimento == null ? '—' : formatarPct(r.comprometimento)}</div></div>
       </div>
 
@@ -71,10 +72,10 @@ export function Relatorio({ dados }: { dados: Dados }) {
           </div>
         </div>
         <div className="secao">
-          <div className="secao-topo"><h3>Compromissos do mês</h3><span className="sutil">{formatarBRL(r.compromissos)}</span></div>
-          <div className="item-lista"><span>Custos fixos</span><strong>{formatarBRL(r.custosFixos)}</strong></div>
-          <div className="item-lista"><span>Parcelas de dívidas</span><strong>{formatarBRL(r.parcelasDoMes)}</strong></div>
-          <div className="item-lista"><span>Saldo devedor total</span><strong>{formatarBRL(r.saldoDevedor)}</strong></div>
+          <div className="secao-topo"><h3>Compromissos do mês</h3><span className="sutil"><Dinheiro valor={r.compromissos} /></span></div>
+          <div className="item-lista"><span>Custos fixos</span><strong><Dinheiro valor={r.custosFixos} /></strong></div>
+          <div className="item-lista"><span>Parcelas de dívidas</span><strong><Dinheiro valor={r.parcelasDoMes} /></strong></div>
+          <div className="item-lista"><span>Saldo devedor total</span><strong><Dinheiro valor={r.saldoDevedor} /></strong></div>
 
           <div className="secao-topo" style={{ marginTop: 26 }}><h3>Reserva de emergência</h3><span className="sutil">meta {r.reserva.meta} meses</span></div>
           <Barra
@@ -83,7 +84,7 @@ export function Relatorio({ dados }: { dados: Dados }) {
             fracao={(r.reserva.meses ?? 0) / r.reserva.meta}
           />
           <p className="sutil" style={{ margin: 0 }}>
-            Despesa média {formatarBRL(r.reserva.despesaMedia)}/mês.{' '}
+            Despesa média <Dinheiro valor={r.reserva.despesaMedia} />/mês.{' '}
             {r.reserva.mesesParaMeta === 0 ? 'Meta atingida.' : r.reserva.mesesParaMeta == null ? 'Com a sobra deste mês, a meta não avança.' : `Guardando a sobra deste mês, a meta chega em ${r.reserva.mesesParaMeta} meses.`}
           </p>
         </div>
@@ -100,7 +101,7 @@ export function Relatorio({ dados }: { dados: Dados }) {
           <table className="tabela">
             <thead><tr><th>Conta</th><th style={{ textAlign: 'right' }}>Entrou</th><th style={{ textAlign: 'right' }}>Saiu</th><th style={{ textAlign: 'right' }}>Pendente</th></tr></thead>
             <tbody>{porConta.map((p) => (
-              <tr key={p.conta.id}><td>{p.conta.nome}</td><td className="num pos">{formatarBRL(p.entrou)}</td><td className="num">{formatarBRL(p.saiu)}</td><td className="num sutil">{formatarBRL(p.pendente)}</td></tr>
+              <tr key={p.conta.id}><td>{p.conta.nome}</td><td className="num pos"><Dinheiro valor={p.entrou} tom="pos" /></td><td className="num"><Dinheiro valor={p.saiu} /></td><td className="num sutil"><Dinheiro valor={p.pendente} /></td></tr>
             ))}</tbody>
           </table>
         </div>

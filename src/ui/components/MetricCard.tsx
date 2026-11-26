@@ -1,4 +1,5 @@
-export function MetricCard({ titulo, valor, badge, tom }: { titulo: string; valor: string; badge?: string; tom?: 'bom' | 'ruim' | 'neutro' }) {
+import type { ReactNode } from 'react'
+export function MetricCard({ titulo, valor, badge, tom }: { titulo: string; valor: ReactNode; badge?: string; tom?: 'bom' | 'ruim' | 'neutro' }) {
   return (
     <div className="card">
       <h3>{titulo}</h3>

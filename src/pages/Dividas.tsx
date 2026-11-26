@@ -8,6 +8,7 @@ import { Barra } from '../ui/components/Barra'
 import { Modal, BotaoExcluir } from '../ui/components/Modal'
 import { Campo, Vazio, Texto, Data, Moeda, Selecao } from '../ui/components/Campos'
 import { useForm } from '../ui/useForm'
+import { Dinheiro } from '../ui/components/Dinheiro'
 import type { Dados } from '../ui/useDados'
 
 const reais = (c: number) => (c / 100).toFixed(2).replace('.', ',')
@@ -69,8 +70,8 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
     <>
       <div className="topo"><h1>Dívidas</h1><button className="botao" onClick={() => abrir()}>Nova dívida</button></div>
       <div className="cards" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-        <div className="card"><h3>Saldo devedor</h3><div className="valor">{formatarBRL(saldoDevedor(todasParcelas))}</div></div>
-        <div className="card"><h3>Próximos 30 dias</h3><div className="valor">{formatarBRL(prox30)}</div></div>
+        <div className="card"><h3>Saldo devedor</h3><div className="valor"><Dinheiro valor={saldoDevedor(todasParcelas)} animar /></div></div>
+        <div className="card"><h3>Próximos 30 dias</h3><div className="valor"><Dinheiro valor={prox30} animar /></div></div>
         <div className="card"><h3>Parcelas atrasadas</h3><div className={`valor ${parcelasAtrasadas(todasParcelas, hojeISO).length ? '' : 'pos'}`}>{parcelasAtrasadas(todasParcelas, hojeISO).length}</div></div>
       </div>
       {!dados.dividas.length && <div className="secao"><Vazio>Nenhuma dívida cadastrada. Que bom!</Vazio></div>}
@@ -93,7 +94,7 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
             {prox && aberta !== d.id && (
               <div className="item-lista">
                 <span>Próxima: parcela {prox.numero} · vence {br(prox.vencimento)} {prox.vencimento < hojeISO && <span className="tag ruim">atrasada</span>}</span>
-                <span className="acoes"><strong>{formatarBRL(prox.valor)}</strong><button className="aba ativa" onClick={() => abrirPagamento(d, prox)}>pagar</button></span>
+                <span className="acoes"><strong><Dinheiro valor={prox.valor} /></strong><button className="aba ativa" onClick={() => abrirPagamento(d, prox)}>pagar</button></span>
               </div>
             )}
             {aberta === d.id && (
@@ -105,7 +106,7 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
                       <td>{p.numero}</td>
                       <td>{br(p.vencimento)}</td>
                       <td>{p.pago_em ? <span className="tag bom">paga em {br(p.pago_em)}</span> : p.vencimento < hojeISO ? <span className="tag ruim">atrasada</span> : <span className="tag">em aberto</span>}</td>
-                      <td className="num">{formatarBRL(p.valor_pago ?? p.valor)}</td>
+                      <td className="num"><Dinheiro valor={p.valor_pago ?? p.valor} /></td>
                       <td><div className="acoes">{!p.pago_em && <>
                         <button className="aba" onClick={() => { fa.reiniciar({ valor: reais(p.valor), vencimento: p.vencimento }); setAjustando(p) }}>ajustar</button>
                         <button className="aba ativa" onClick={() => abrirPagamento(d, p)}>pagar</button>

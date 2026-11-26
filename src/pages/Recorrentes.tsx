@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { formatarBRL } from '../shared/dinheiro'
 import { competenciaDe, dataNoMes, deslocarCompetencia, diasNoMes, hoje, rotuloCompetencia } from '../shared/data'
 import { validarRecorrente, type CamposRecorrente } from '../shared/recorrente'
 import { alternarReceita, atualizarReceita, criarReceita, excluirReceita } from '../domain/receita/repository'
@@ -13,6 +12,7 @@ import { criarLancamento, importarLancamentos } from '../domain/lancamento/repos
 import { Modal, BotaoExcluir } from '../ui/components/Modal'
 import { Campo, Vazio, Texto, Data, Moeda, Selecao } from '../ui/components/Campos'
 import { useForm } from '../ui/useForm'
+import { Dinheiro } from '../ui/components/Dinheiro'
 import type { Dados } from '../ui/useDados'
 
 type Item = Receita | CustoFixo
@@ -83,8 +83,8 @@ export function Receitas({ dados, recarregar }: { dados: Dados; recarregar: () =
     <>
       <div className="topo"><h1>Receitas</h1><button className="botao" onClick={() => abrir()}>Nova receita</button></div>
       <div className="cards" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-        <div className="card"><h3>Prevista em {rotuloCompetencia(c)}</h3><div className="valor">{formatarBRL(prevista)}</div></div>
-        <div className="card"><h3>Recebido no mês</h3><div className="valor pos">{formatarBRL(recebido)}</div></div>
+        <div className="card"><h3>Prevista em {rotuloCompetencia(c)}</h3><div className="valor"><Dinheiro valor={prevista} animar /></div></div>
+        <div className="card"><h3>Recebido no mês</h3><div className="valor pos"><Dinheiro valor={recebido} animar tom="pos" /></div></div>
         <div className="card"><h3>Fontes ativas</h3><div className="valor">{dados.receitas.filter((r) => r.ativa && ativaNaCompetencia(r, c)).length}</div></div>
       </div>
       <div className="secao">
@@ -98,7 +98,7 @@ export function Receitas({ dados, recarregar }: { dados: Dados; recarregar: () =
                   <td className="sutil">{vigencia(r)}</td>
                   <td className="sutil">{r.dia_recebimento ?? '—'}</td>
                   <td className="sutil">{dados.categorias.find((k) => k.id === r.categoria_id)?.nome ?? '—'}</td>
-                  <td className="num pos">{formatarBRL(r.valor)}</td>
+                  <td className="num pos"><Dinheiro valor={r.valor} tom="pos" /></td>
                   <td><div className="acoes">
                     {r.ativa && ativaNaCompetencia(r, c) && !recebidaNoMes(r) && <button className="aba ativa" onClick={() => registrar(r)}>registrar recebimento</button>}
                     <button className="aba" onClick={async () => { await alternarReceita(r.id, !r.ativa); recarregar() }}>{r.ativa ? 'pausar' : 'reativar'}</button>
@@ -137,9 +137,9 @@ export function CustosFixos({ dados, recarregar }: { dados: Dados; recarregar: (
         </div>
       </div>
       <div className="cards" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-        <div className="card"><h3>Total do mês</h3><div className="valor">{formatarBRL(total)}</div></div>
+        <div className="card"><h3>Total do mês</h3><div className="valor"><Dinheiro valor={total} animar /></div></div>
         <div className="card"><h3>Pagos</h3><div className="valor pos">{pagos.length} de {situacoes.length}</div></div>
-        <div className="card"><h3>Faltam pagar</h3><div className="valor">{formatarBRL(total - pagos.reduce((s, x) => s + x.custo.valor, 0))}</div></div>
+        <div className="card"><h3>Faltam pagar</h3><div className="valor"><Dinheiro valor={total - pagos.reduce((s, x) => s + x.custo.valor, 0)} animar /></div></div>
       </div>
       <div className="secao">
         <div className="secao-topo">
@@ -162,7 +162,7 @@ export function CustosFixos({ dados, recarregar }: { dados: Dados; recarregar: (
                     <td className="sutil">{cf.dia_vencimento ? `dia ${Math.min(cf.dia_vencimento, diasNoMes(c))}` : '—'}</td>
                     <td className="sutil">{cf.cartao_id ? dados.cartoes.find((x) => x.id === cf.cartao_id)?.nome : dados.contas.find((x) => x.id === cf.conta_id)?.nome ?? '—'}</td>
                     <td>{s ? <span className={`tag ${s === 'pago' ? 'bom' : s === 'pendente' ? 'laranja' : ''}`}>{s === 'faltando' ? 'não lançado' : s}</span> : <span className="sutil">fora da vigência</span>}</td>
-                    <td className="num">{formatarBRL(cf.valor)}</td>
+                    <td className="num"><Dinheiro valor={cf.valor} /></td>
                     <td><div className="acoes">
                       <button className="aba" onClick={async () => { await alternarCustoFixo(cf.id, !cf.ativo); recarregar() }}>{cf.ativo ? 'pausar' : 'reativar'}</button>
                       <button className="aba" onClick={() => abrir(cf)}>editar</button>
@@ -180,7 +180,7 @@ export function CustosFixos({ dados, recarregar }: { dados: Dados; recarregar: (
         <div style={{ gridColumn: '1 / -1' }}>
           <p className="sutil" style={{ marginTop: 0 }}>Serão criados como <b>pendentes</b>, na data de vencimento. Depois é só marcar como pago em Lançamentos. Custos já lançados no mês ficam de fora.</p>
           {aGerar.map((l) => (
-            <div className="item-lista" key={l.id_externo}><span>{l.descricao} <span className="sutil">· {l.data.split('-').reverse().join('/')}</span></span><strong>{formatarBRL(l.valor)}</strong></div>
+            <div className="item-lista" key={l.id_externo}><span>{l.descricao} <span className="sutil">· {l.data.split('-').reverse().join('/')}</span></span><strong><Dinheiro valor={l.valor} /></strong></div>
           ))}
           <p className="sutil">{situacoes.length - aGerar.length} já lançados neste mês.</p>
         </div>

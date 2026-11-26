@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { formatarBRL } from '../shared/dinheiro'
 import { competenciaDe, deslocarCompetencia, hoje, rotuloCompetencia } from '../shared/data'
 import { validarLancamento, type CamposLancamento } from '../domain/lancamento/form'
 import { atualizarLancamento, criarLancamento, excluirLancamentoComVinculos, importarLancamentos } from '../domain/lancamento/repository'
@@ -9,6 +8,7 @@ import type { LancamentoDetalhado } from '../domain/lancamento/model'
 import { Modal, BotaoExcluir } from '../ui/components/Modal'
 import { Campo, Vazio, Texto, Busca, Data, Moeda, Selecao, MultiSelecao, Segmentos, Interruptor } from '../ui/components/Campos'
 import { useForm } from '../ui/useForm'
+import { Dinheiro } from '../ui/components/Dinheiro'
 import type { Dados } from '../ui/useDados'
 
 const vazio = (): CamposLancamento => ({
@@ -89,10 +89,10 @@ export function Lancamentos({ dados, recarregar }: { dados: Dados; recarregar: (
         </div>
       </div>
       <div className="cards">
-        <div className="card"><h3>Receitas</h3><div className="valor pos">{formatarBRL(t.receitas)}</div></div>
-        <div className="card"><h3>Despesas</h3><div className="valor">{formatarBRL(t.despesas)}</div></div>
-        <div className="card"><h3>Resultado</h3><div className="valor">{formatarBRL(t.resultado)}</div></div>
-        <div className="card"><h3>Pendentes</h3><div className="valor">{pendentes.length}</div><span className="sutil">{formatarBRL(pendentes.reduce((s, l) => s + l.valor, 0))}</span></div>
+        <div className="card"><h3>Receitas</h3><div className="valor pos"><Dinheiro valor={t.receitas} animar tom="pos" /></div></div>
+        <div className="card"><h3>Despesas</h3><div className="valor"><Dinheiro valor={t.despesas} animar /></div></div>
+        <div className="card"><h3>Resultado</h3><div className="valor"><Dinheiro valor={t.resultado} animar /></div></div>
+        <div className="card"><h3>Pendentes</h3><div className="valor">{pendentes.length}</div><span className="sutil"><Dinheiro valor={pendentes.reduce((s, l) => s + l.valor, 0)} /></span></div>
       </div>
       <div className="secao">
         <div className="secao-topo">
@@ -129,7 +129,7 @@ export function Lancamentos({ dados, recarregar }: { dados: Dados; recarregar: (
                   </td>
                   <td className="sutil">{l.categoria_nome ?? '—'}</td>
                   <td className="sutil">{origem(l)}</td>
-                  <td className={`num ${l.tipo === 'RECEITA' ? 'pos' : 'neg'}`}>{l.tipo === 'RECEITA' ? '+' : l.tipo === 'DESPESA' ? '−' : '⇄'} {formatarBRL(l.valor)}</td>
+                  <td className={`num ${l.tipo === 'RECEITA' ? 'pos' : 'neg'}`}>{l.tipo === 'RECEITA' ? '+' : l.tipo === 'DESPESA' ? '−' : '⇄'} <Dinheiro valor={l.valor} /></td>
                   <td>
                     <div className="acoes">
                       {l.status === 'PENDENTE' && <button className="aba ativa" onClick={() => marcarPago(l)}>pagar</button>}

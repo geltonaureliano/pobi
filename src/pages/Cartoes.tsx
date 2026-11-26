@@ -10,6 +10,7 @@ import { Modal, BotaoExcluir } from '../ui/components/Modal'
 import { Campo, Vazio, Texto, Data, Moeda, Selecao } from '../ui/components/Campos'
 import { Barra } from '../ui/components/Barra'
 import { useForm } from '../ui/useForm'
+import { Dinheiro } from '../ui/components/Dinheiro'
 import type { Dados } from '../ui/useDados'
 
 const reais = (c: number) => (c / 100).toFixed(2).replace('.', ',')
@@ -79,8 +80,8 @@ export function Cartoes({ dados, recarregar }: { dados: Dados; recarregar: () =>
                       <td>{rotuloCompetencia(f.fatura)}{f.fatura === atualFat && <span className="sutil"> · atual</span>}</td>
                       <td>{f.vencimento.split('-').reverse().join('/')}</td>
                       <td><span className={`tag ${f.situacao === 'paga' ? 'bom' : f.vencimento < hoje() ? 'ruim' : 'laranja'}`}>{f.situacao === 'paga' ? 'paga' : f.vencimento < hoje() ? 'vencida' : f.situacao}</span></td>
-                      <td className="num">{formatarBRL(f.total)}</td>
-                      <td className="num">{formatarBRL(f.emAberto)}</td>
+                      <td className="num"><Dinheiro valor={f.total} /></td>
+                      <td className="num"><Dinheiro valor={f.emAberto} /></td>
                       <td><div className="acoes">{f.emAberto > 0 && <button className="aba ativa" onClick={() => abrirPagamento(k, f)}>pagar fatura</button>}</div></td>
                     </tr>
                   ))}

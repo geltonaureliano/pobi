@@ -7,6 +7,7 @@ import { heatmapDeGastos, metricasDoMes } from '../domain/painel/rules'
 import { MetricCard } from '../ui/components/MetricCard'
 import { Heatmap } from '../ui/components/Heatmap'
 import { Barra } from '../ui/components/Barra'
+import { Dinheiro } from '../ui/components/Dinheiro'
 import type { Dados } from '../ui/useDados'
 
 const JANELAS = { '3M': 3, '6M': 6, '9M': 9 } as const
@@ -41,9 +42,9 @@ export function Painel({ dados, ir }: { dados: Dados; ir: (p: 'relatorio' | 'anu
         </div>
       </div>
       <div className="cards">
-        <MetricCard titulo="Saldo total" valor={formatarBRL(saldoTotal(dados.contas))} badge={`${dados.contas.filter((x) => !x.arquivada).length} contas ativas`} tom="neutro" />
-        <MetricCard titulo="Receitas do mês" valor={formatarBRL(m.receitas.valor)} badge={br?.texto} tom={br?.tom} />
-        <MetricCard titulo="Despesas do mês" valor={formatarBRL(m.despesas.valor)} badge={bd?.texto} tom={bd?.tom} />
+        <MetricCard titulo="Saldo total" valor={<Dinheiro valor={saldoTotal(dados.contas)} animar />} badge={`${dados.contas.filter((x) => !x.arquivada).length} contas ativas`} tom="neutro" />
+        <MetricCard titulo="Receitas do mês" valor={<Dinheiro valor={m.receitas.valor} animar />} badge={br?.texto} tom={br?.tom} />
+        <MetricCard titulo="Despesas do mês" valor={<Dinheiro valor={m.despesas.valor} animar />} badge={bd?.texto} tom={bd?.tom} />
         <MetricCard
           titulo="Taxa de poupança"
           valor={tp.valor == null ? '—' : formatarPct(tp.valor)}
@@ -66,14 +67,14 @@ export function Painel({ dados, ir }: { dados: Dados; ir: (p: 'relatorio' | 'anu
 
       <div className="dupla">
         <div className="secao">
-          <div className="secao-topo"><h3>Saldo por conta</h3><span className="sutil">{formatarBRL(saldoTotal(dados.contas))}</span></div>
+          <div className="secao-topo"><h3>Saldo por conta</h3><span className="sutil"><Dinheiro valor={saldoTotal(dados.contas)} /></span></div>
           {contas.length === 0 && <p className="sutil">Nenhuma conta cadastrada.</p>}
           {contas.map((x) => (
             <Barra key={x.id} rotulo={x.nome} direita={formatarBRL(x.saldo)} fracao={positivo ? Math.max(x.saldo, 0) / positivo : 0} estourada={x.saldo < 0} />
           ))}
         </div>
         <div className="secao">
-          <div className="secao-topo"><h3>Maiores categorias</h3><span className="sutil">{formatarBRL(m.despesas.valor as number)}</span></div>
+          <div className="secao-topo"><h3>Maiores categorias</h3><span className="sutil"><Dinheiro valor={m.despesas.valor as number} /></span></div>
           {categorias.slice(0, 6).map((f) => (
             <div className="ranking-item" key={String(f.categoria_id)}>
               <div className="ranking-icone">{f.nome.slice(0, 1)}</div>
