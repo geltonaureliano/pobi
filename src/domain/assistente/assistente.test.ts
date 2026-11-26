@@ -105,3 +105,29 @@ describe('conversas salvas', () => {
     expect(quandoLegivel('2026-11-26 12:30:00', agora)).toBe('há 30 min')
   })
 })
+
+import { aplicarNoCusto, acharPorNome } from './rules'
+import { custoVazio } from '../custo-fixo/form'
+
+describe('custo fixo com IA', () => {
+  const ctx = {
+    categorias: [{ id: 1, nome: 'Moradia' }, { id: 2, nome: 'Assinaturas' }, { id: 3, nome: 'Saúde' }],
+    contas: [{ id: 10, nome: 'Nubank' }, { id: 11, nome: 'Inter' }],
+    cartoes: [{ id: 20, nome: 'Nubank Roxinho' }],
+  }
+  it('usa categoria e conta existentes, sem ligar para acento', () => {
+    const r = aplicarNoCusto(custoVazio(), { nome: 'Aluguel', valor: 2500, dia_vencimento: 5, categoria: 'moradia', conta: 'inter' }, ctx)
+    expect(r).toMatchObject({ nome: 'Aluguel', valor: '2.500,00', dia: '5', categoria_id: '1', categoria_nova: '', conta_id: '11' })
+  })
+  it('categoria que não existe vira sugestão de categoria nova', () => {
+    const r = aplicarNoCusto(custoVazio(), { nome: 'Pet shop', categoria: 'Pets', categoria_nova: true }, ctx)
+    expect(r).toMatchObject({ categoria_id: '', categoria_nova: 'Pets' })
+  })
+  it('cartão tem prioridade sobre conta', () => {
+    expect(aplicarNoCusto(custoVazio('10'), { cartao: 'Nubank Roxinho' }, ctx)).toMatchObject({ cartao_id: '20', conta_id: '' })
+  })
+  it('acharPorNome aceita parte do nome quando é único', () => {
+    expect(acharPorNome(ctx.categorias, 'saude')?.id).toBe(3)
+    expect(acharPorNome(ctx.contas, 'Banco')).toBeNull()
+  })
+})

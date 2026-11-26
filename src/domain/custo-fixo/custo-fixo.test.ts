@@ -5,7 +5,7 @@ import type { CustoFixo } from './model'
 
 const cf = (p: Partial<CustoFixo>): CustoFixo => ({
   id: 1, nome: 'Aluguel', valor: 200000, dia_vencimento: 31, inicio: '2026-01-01', fim: null,
-  conta_id: 1, cartao_id: null, categoria_id: 4, ativo: 1, observacao: null, ...p,
+  conta_id: 1, cartao_id: null, categoria_id: 4, ativo: 1, observacao: null, origem: 'MANUAL', ...p,
 })
 
 describe('custos fixos', () => {

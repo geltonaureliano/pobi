@@ -1,5 +1,5 @@
 /** O que o assistente está ajudando a cadastrar. */
-export type AlvoAssistente = 'divida' | 'receita'
+export type AlvoAssistente = 'divida' | 'receita' | 'custo'
 
 export interface AnexoLocal {
   id: string

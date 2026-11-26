@@ -3,6 +3,7 @@ import { dataValida, type DataISO } from '../../shared/data'
 import type { CamposDivida } from '../divida/form'
 import { SISTEMAS, TIPOS_DIVIDA } from '../divida/model'
 import type { CamposReceita } from '../receita/form'
+import type { CamposCusto } from '../custo-fixo/form'
 import type { AlvoAssistente, Confianca, MensagemChat, RespostaAssistente } from './model'
 
 /* ------------------------------------------------------------------ */
@@ -45,9 +46,21 @@ const CAMPOS: Record<AlvoAssistente, string> = {
   "fim": "AAAA-MM-DD",            // só se tiver data para acabar
   "observacao": string            // descontos, comissão, 13º, sazonalidade…
 }`,
+  custo: `{
+  "nome": string,                 // curto e claro, ex.: "Aluguel", "Internet Vivo", "Academia"
+  "valor": number,                // valor mensal, em reais
+  "dia_vencimento": number,       // 1 a 31
+  "categoria": string,            // nome EXATO de uma categoria de despesa existente (lista abaixo) ou um nome novo curto se nenhuma servir
+  "categoria_nova": boolean,      // true se "categoria" não existe e deve ser criada
+  "conta": string,                // nome exato de uma conta existente de onde sai (ou null)
+  "cartao": string,               // nome exato de um cartão existente, se é cobrado no cartão (ou null)
+  "inicio": "AAAA-MM-DD",
+  "fim": "AAAA-MM-DD",            // só se tiver data para acabar (ex.: fidelidade)
+  "observacao": string            // reajuste anual, fidelidade, multa…
+}`,
 }
 
-const NOME: Record<AlvoAssistente, string> = { divida: 'uma dívida', receita: 'uma receita recorrente' }
+const NOME: Record<AlvoAssistente, string> = { divida: 'uma dívida', receita: 'uma receita recorrente', custo: 'um custo fixo mensal (despesa que se repete todo mês)' }
 
 export function montarPromptAssistente(p: {
   alvo: AlvoAssistente
@@ -55,6 +68,8 @@ export function montarPromptAssistente(p: {
   historico: MensagemChat[]
   rascunhoAtual: Record<string, unknown>
   arquivos: string[]
+  /** Informações do app úteis para a IA (categorias, contas e cartões existentes). */
+  contexto?: string
 }): string {
   const conversa = p.historico
     .filter((m) => !m.erro)
@@ -74,7 +89,7 @@ Seu trabalho:
    Se o arquivo não parecer ${NOME[p.alvo]}, avise.
 5. Mantenha os valores do rascunho atual que continuam válidos; altere só o que a nova informação mudar.
 
-Rascunho atual (pode estar vazio):
+${p.contexto ? `${p.contexto}\n\n` : ''}Rascunho atual (pode estar vazio):
 ${JSON.stringify(p.rascunhoAtual)}
 
 Conversa até agora:
@@ -215,4 +230,47 @@ export function quandoLegivel(quando: string, agora = new Date()): string {
   const ontem = new Date(agora); ontem.setDate(agora.getDate() - 1)
   if (d.toDateString() === ontem.toDateString()) return 'ontem'
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
+const normalizar = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+
+/** Acha pelo nome, sem ligar para acento e maiúsculas; aceita "contém" quando é único. */
+export function acharPorNome<T extends { id: number; nome: string }>(itens: T[], nome: unknown): T | null {
+  if (typeof nome !== 'string' || !nome.trim()) return null
+  const n = normalizar(nome)
+  const exato = itens.find((i) => normalizar(i.nome) === n)
+  if (exato) return exato
+  const parecidos = itens.filter((i) => normalizar(i.nome).includes(n) || n.includes(normalizar(i.nome)))
+  return parecidos.length === 1 ? parecidos[0] : null
+}
+
+export interface ContextoCusto {
+  categorias: { id: number; nome: string }[]
+  contas: { id: number; nome: string }[]
+  cartoes: { id: number; nome: string }[]
+}
+
+export const contextoDoCusto = (c: ContextoCusto) =>
+  `Categorias de despesa existentes: ${c.categorias.map((k) => k.nome).join(', ') || '(nenhuma)'}.
+Contas: ${c.contas.map((k) => k.nome).join(', ') || '(nenhuma)'}. Cartões: ${c.cartoes.map((k) => k.nome).join(', ') || '(nenhum)'}.
+Escolha a categoria existente que mais combina com o custo; só proponha uma nova (categoria_nova: true) se nenhuma fizer sentido.`
+
+export function aplicarNoCusto(f: CamposCusto, r: Record<string, unknown>, ctx: ContextoCusto): CamposCusto {
+  const novo = { ...f }
+  const set = <K extends keyof CamposCusto>(k: K, v: CamposCusto[K] | null) => { if (v != null) novo[k] = v }
+  set('nome', str(r.nome))
+  set('valor', reais(r.valor))
+  const dia = num(r.dia_vencimento)
+  if (dia != null && dia >= 1 && dia <= 31) novo.dia = String(Math.round(dia))
+  set('inicio', data(r.inicio))
+  set('fim', data(r.fim))
+  set('observacao', str(r.observacao))
+  const cat = acharPorNome(ctx.categorias, r.categoria)
+  if (cat) { novo.categoria_id = String(cat.id); novo.categoria_nova = '' }
+  else if (str(r.categoria)) { novo.categoria_id = ''; novo.categoria_nova = str(r.categoria)! }
+  const cartao = acharPorNome(ctx.cartoes, r.cartao)
+  const conta = acharPorNome(ctx.contas, r.conta)
+  if (cartao) { novo.cartao_id = String(cartao.id); novo.conta_id = '' }
+  else if (conta) { novo.conta_id = String(conta.id); novo.cartao_id = '' }
+  return novo
 }

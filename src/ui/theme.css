@@ -725,3 +725,13 @@ body { font-size: 13.5px; font-feature-settings: 'ss01'; }
 .toast.aviso .toast-tempo { background: var(--laranja); } .toast.info .toast-tempo { background: #d6d3c8; }
 .toast.pausado .toast-tempo { animation-play-state: paused; }
 @keyframes toast-tempo { to { transform: scaleX(0); } }
+
+/* Custos fixos */
+.cat-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; }
+.cat-chip i { width: 9px; height: 9px; border-radius: 3px; }
+.valor-custo .dinheiro { font-weight: 650; }
+.valor-texto { font-family: var(--fonte); font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+.linha-unica { max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.destaque-texto { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.categoria-nova { display: flex; align-items: center; gap: 8px; min-height: var(--ctl-h); padding: 0 6px 0 12px; border-radius: var(--ctl-raio); border: 1.5px dashed var(--laranja-2); background: #fffaf0; font-size: 12.5px; }
+.categoria-nova .aba { margin-left: auto; }

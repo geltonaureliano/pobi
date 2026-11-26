@@ -4,6 +4,7 @@ import { totalDoFormulario } from '../../domain/divida/form'
 import { SISTEMAS, TIPOS_DIVIDA } from '../../domain/divida/model'
 import { taxaAnualDe } from '../../domain/divida/rules'
 import { parametrosPorHora, type CamposReceita } from '../../domain/receita/form'
+import type { CamposCusto } from '../../domain/custo-fixo/form'
 import { previsaoDaReceita } from '../../domain/receita/rules'
 import { competenciaDe, deslocarCompetencia, hoje, rotuloCompetencia } from '../../shared/data'
 import type { Categoria } from '../../domain/categoria/model'
@@ -120,6 +121,50 @@ export function CamposReceitaForm({ f, categorias, contas, destacar = [], foco }
       <Campo rotulo="Categoria"><Selecao {...f.campo('categoria_id')} itens={categorias.filter((k) => k.tipo === 'RECEITA')} /></Campo>
       <Campo rotulo="Cai na conta"><Selecao {...f.campo('conta_id')} itens={contas} /></Campo>
       <div className={d('observacao')} style={{ gridColumn: '1 / -1' }}><Campo rotulo="Observações"><AreaTexto linhas={2} placeholder="Comissão, 13º, sazonalidade…" {...f.campo('observacao')} /></Campo></div>
+    </>
+  )
+}
+
+/** Campos de custo fixo: um registro de despesa mensal (valor, dia, categoria e de onde sai). */
+export function CamposCustoForm({ f, categorias, contas, cartoes, destacar = [], foco }: {
+  f: Form<CamposCusto>; categorias: Categoria[]; contas: { id: number; nome: string }[]; cartoes: { id: number; nome: string }[]; destacar?: string[]; foco?: boolean
+}) {
+  const v = f.valores
+  const d = (k: keyof CamposCusto) => (destacar.includes(k) ? 'destacado' : undefined)
+  const deCartao = !!v.cartao_id
+  return (
+    <>
+      <div className={d('nome')} style={{ gridColumn: '1 / -1' }}><Campo rotulo="Nome" erro={f.erros.nome}><Texto autoFocus={foco} placeholder="Aluguel, internet, academia…" {...f.campo('nome')} /></Campo></div>
+      <div className={d('valor')}><Campo rotulo="Valor mensal" erro={f.erros.valor}><Moeda {...f.campo('valor')} /></Campo></div>
+      <div className={d('dia')}><Campo rotulo="Vence todo dia" erro={f.erros.dia} dica="Vazio = último dia do mês"><Texto placeholder="5" numerico maxLength={2} {...f.campo('dia')} /></Campo></div>
+      <div className={d('categoria_id') ?? d('categoria_nova')} style={{ gridColumn: '1 / -1' }}>
+        <Campo rotulo="Categoria">
+          {v.categoria_nova && !v.categoria_id ? (
+            <div className="categoria-nova">
+              <span className="tag laranja">nova</span>
+              <strong>{v.categoria_nova}</strong>
+              <span className="sutil">será criada ao salvar</span>
+              <button type="button" className="aba" onClick={() => f.setValores((x) => ({ ...x, categoria_nova: '' }))}>escolher outra</button>
+            </div>
+          ) : (
+            <Selecao {...f.campo('categoria_id')} itens={categorias.filter((k) => k.tipo === 'DESPESA')} vazio="Sem categoria" />
+          )}
+        </Campo>
+      </div>
+      <div style={{ gridColumn: '1 / -1' }}>
+        <Campo rotulo="Sai de">
+          <Segmentos value={deCartao ? 'CARTAO' : 'CONTA'} onChange={(m) => f.setValores((x) => m === 'CARTAO'
+            ? { ...x, conta_id: '', cartao_id: x.cartao_id || String(cartoes[0]?.id ?? '') }
+            : { ...x, cartao_id: '', conta_id: x.conta_id || String(contas[0]?.id ?? '') })}
+            itens={[{ id: 'CONTA', nome: 'Conta' }, { id: 'CARTAO', nome: 'Cartão de crédito' }]} />
+        </Campo>
+      </div>
+      {deCartao
+        ? <div className={d('cartao_id')} style={{ gridColumn: '1 / -1' }}><Campo rotulo="Cartão" erro={f.erros.cartao_id}><Selecao {...f.campo('cartao_id')} itens={cartoes} vazio={null} /></Campo></div>
+        : <div className={d('conta_id')} style={{ gridColumn: '1 / -1' }}><Campo rotulo="Conta"><Selecao {...f.campo('conta_id')} itens={contas} /></Campo></div>}
+      <div className={d('inicio')}><Campo rotulo="A partir de" erro={f.erros.inicio}><Data {...f.campo('inicio')} /></Campo></div>
+      <div className={d('fim')}><Campo rotulo="Até" erro={f.erros.fim} dica="Vazio = sem data para acabar"><Data {...f.campo('fim')} /></Campo></div>
+      <div className={d('observacao')} style={{ gridColumn: '1 / -1' }}><Campo rotulo="Observações"><AreaTexto linhas={2} placeholder="Reajuste anual, fidelidade, multa…" {...f.campo('observacao')} /></Campo></div>
     </>
   )
 }

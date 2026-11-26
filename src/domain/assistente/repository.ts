@@ -32,7 +32,22 @@ function simular(alvo: AlvoAssistente, t: string, anexos: AnexoLocal[]): Promise
   const pagas = Number(t.match(/(?:paguei|pagas?)\s*(\d+)/i)?.[1] ?? 0) || null
   const taxa = Number((t.match(/(\d+(?:[,.]\d+)?)\s*%/)?.[1] ?? '').replace(',', '.')) || null
   const grandes = valores.filter((v) => v >= 50).sort((a, b) => b - a)
-  const r = alvo === 'divida'
+  const r = alvo === 'custo'
+    ? {
+        resposta: 'Modo demonstração (no navegador a IA local não roda). Montei o custo fixo com o que você escreveu e escolhi a categoria que mais combina. Confira ao lado.',
+        resumo: 'Custo fixo mensal a confirmar.',
+        confianca: 'media',
+        pendencias: ['Confirme de qual conta ou cartão sai.'],
+        rascunho: {
+          nome: /aluguel/i.test(t) ? 'Aluguel' : /internet|vivo|claro/i.test(t) ? 'Internet' : /academia/i.test(t) ? 'Academia' : /condom/i.test(t) ? 'Condomínio' : /pet|ra[cç][aã]o/i.test(t) ? 'Pet' : null,
+          valor: grandes[0] ?? valores[0] ?? null,
+          dia_vencimento: Number(t.match(/dia\s*(\d{1,2})/i)?.[1] ?? 0) || null,
+          categoria: /aluguel|condom/i.test(t) ? 'Moradia' : /internet|netflix|spotify|vivo|claro/i.test(t) ? 'Assinaturas' : /academia|plano/i.test(t) ? 'Saúde' : /pet|ra[cç][aã]o/i.test(t) ? 'Pets' : null,
+          categoria_nova: /pet|ra[cç][aã]o/i.test(t),
+          cartao: /cart[aã]o/i.test(t) ? 'Nubank Roxinho' : null,
+        },
+      }
+    : alvo === 'divida'
     ? {
         resposta: `Modo demonstração (no navegador a IA local não roda). Li ${anexos.length ? `${anexos.length} arquivo(s) e ` : ''}sua mensagem e montei um rascunho. Confira os campos ao lado.`,
         resumo: parcelas ? `Dívida em ${parcelas} parcelas${grandes[0] ? ` de cerca de R$ ${grandes[grandes.length - 1].toLocaleString('pt-BR')}` : ''}.` : 'Dívida a confirmar.',

@@ -13,5 +13,6 @@ export interface CustoFixo {
   categoria_id: number | null
   ativo: 0 | 1
   observacao: string | null
+  origem: 'MANUAL' | 'IA'
 }
-export type NovoCustoFixo = Omit<CustoFixo, 'id' | 'ativo'>
+export type NovoCustoFixo = Omit<CustoFixo, 'id' | 'ativo' | 'origem'> & { origem?: 'MANUAL' | 'IA' }
