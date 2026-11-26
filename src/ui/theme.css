@@ -678,3 +678,19 @@ body { font-size: 13.5px; font-feature-settings: 'ss01'; }
 .previsao-linha strong { font-family: var(--fonte-dados); font-size: 11px; }
 .previsao-linha span { color: #7a4d08; }
 .previsao-linha .dinheiro { font-weight: 600; }
+
+/* Receitas: colunas e valores */
+.dinheiro.pos { color: #157a3f; }
+.tabela .num.previsto .dinheiro { color: #11693a; font-weight: 700; font-size: 13.5px; }
+.tabela .num.previsto .dinheiro-moeda, .tabela .num.previsto .dinheiro-centavos { opacity: .85; }
+.tabela tfoot .num.previsto .dinheiro { font-size: 14px; }
+.receita-titulo { font-weight: 600; }
+.tag.tipo-fixa { background: var(--cinza-fundo); color: var(--texto-2); }
+.tag.tipo-variavel { background: var(--laranja-4); color: #a8670a; }
+.tag.tipo-horas { background: #e6eefb; color: #2f5fb8; }
+.tabela-receitas .tag.ia { margin-left: 0; }
+.taxa { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.taxa .dinheiro { color: var(--vermelho); }
+.taxa small { font-family: var(--fonte-dados); font-size: 10px; color: var(--texto-2); }
+.acoes-item { display: inline-flex; gap: 6px; align-items: center; }
+.acoes-item .aba { height: 36px; padding: 0 14px; font-size: 12px; }

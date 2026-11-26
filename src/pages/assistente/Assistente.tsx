@@ -8,8 +8,10 @@ import { aplicarNaDivida, aplicarNaReceita, interpretarAssistente, montarPromptA
 import { buscarConversa, executarAssistente, lerArquivo, salvarConversa } from '../../domain/assistente/repository'
 import { camposDividaVazios, totalDoFormulario, validarDivida, type CamposDivida } from '../../domain/divida/form'
 import { criarDivida } from '../../domain/divida/repository'
-import { criarReceita } from '../../domain/receita/repository'
-import { receitaVazia, validarReceita, type CamposReceita } from '../../domain/receita/form'
+import { alternarReceita, atualizarReceita, criarReceita, excluirReceita } from '../../domain/receita/repository'
+import type { Receita } from '../../domain/receita/model'
+import { BotaoExcluir } from '../../ui/components/Modal'
+import { camposDeReceita, receitaVazia, validarReceita, type CamposReceita } from '../../domain/receita/form'
 import { previsaoDaReceita } from '../../domain/receita/rules'
 import { parametrosPorHora } from '../../domain/receita/form'
 import { emTauri } from '../../db/client'
@@ -41,6 +43,12 @@ const SUGESTOES: Record<AlvoAssistente, string[]> = {
   ],
 }
 
+const SUGESTOES_EDICAO = [
+  'Meu valor da hora subiu para R$ 100,00 a partir do mês que vem',
+  'Anexei a última nota: recalcula o desconto até cair na conta',
+  'O pagamento passou a cair no dia 5',
+]
+
 const ETAPAS_ARQUIVO = ['Lendo os arquivos…', 'Entendendo o documento…', 'Extraindo valores e datas…', 'Conferindo os cálculos…', 'Montando o resumo…']
 const ETAPAS_TEXTO = ['Entendendo o que você escreveu…', 'Organizando os dados…', 'Montando o resumo…']
 
@@ -60,17 +68,19 @@ function diferencas(a: object, b: object) {
  * Página do assistente. Com `conversa`, retoma um rascunho salvo (ou mostra uma conversa já concluída).
  * `trocar` abre outra conversa (id) ou uma nova (null); o pai remonta o componente.
  */
-export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar }: {
+export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, editar }: {
   alvo: AlvoAssistente; dados: Dados; voltar: () => void; concluir: (aviso: string) => void
   conversa?: ConversaIA | null; trocar: (c: ConversaIA | null) => void
+  /** Receita já cadastrada a editar: o formulário vem dela e o chat continua a conversa ligada a ela. */
+  editar?: Receita | null
 }) {
   const principal = String(dados.contas.find((x) => x.principal)?.id ?? '')
   const catDividas = dados.categorias.find((k) => k.nome === 'Dívidas')?.id
   const camposIniciais = useRef(conversa?.campos)
   const fd = useForm<CamposDivida>({ ...camposDividaVazios(catDividas ? String(catDividas) : ''), primeiro: '', ...(alvo === 'divida' ? camposIniciais.current as Partial<CamposDivida> : {}) })
-  const fr = useForm<CamposReceita>({ ...receitaVazia(principal), ...(alvo === 'receita' ? camposIniciais.current as Partial<CamposReceita> : {}) })
+  const fr = useForm<CamposReceita>(editar ? camposDeReceita(editar) : { ...receitaVazia(principal), ...(alvo === 'receita' ? camposIniciais.current as Partial<CamposReceita> : {}) })
   const idConversa = useRef(conversa?.id ?? crypto.randomUUID())
-  const concluida = conversa?.status === 'CONCLUIDA'
+  const concluida = conversa?.status === 'CONCLUIDA' && !editar
   const [historicoAberto, setHistoricoAberto] = useState(false)
   const [salvoEm, setSalvoEm] = useState<string | null>(conversa ? conversa.atualizado_em : null)
   const [versao, setVersao] = useState(0)
@@ -128,7 +138,7 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar }: 
     const mexeu = mensagens.length > 0 || JSON.stringify(valoresAtuais) !== valoresIniciais.current
     if (!mexeu || concluida) return
     await salvarConversa({
-      id: idConversa.current, alvo, status: 'RASCUNHO', item_id: null, motor,
+      id: idConversa.current, alvo, status: editar ? 'CONCLUIDA' : 'RASCUNHO', item_id: editar?.id ?? null, motor,
       titulo: tituloDaConversa((valoresAtuais as { nome?: string }).nome, meta?.resumo, mensagens),
       mensagens, campos: valoresAtuais as unknown as Record<string, unknown>, meta, anexos: arquivos,
     })
@@ -243,6 +253,12 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar }: 
         const r = validarReceita(fr.valores)
         if (!r.ok) { fr.setErros(r.erros); rolarAteErro(); return }
         const v = r.valor
+        if (editar) {
+          await atualizarReceita(editar.id, v)
+          await marcarConcluida(v.nome, editar.id)
+          concluir(`${v.nome} atualizada.`)
+          return
+        }
         const id = await criarReceita({ ...v, origem: 'IA' })
         await marcarConcluida(v.nome, id ?? null)
         concluir(`${v.nome} cadastrada.`)
@@ -299,11 +315,19 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar }: 
           {alvo === 'divida' ? 'Dívidas' : 'Receitas'}
         </button>
         <div className="assistente-titulo">
-          <h1>{concluida ? conversa?.titulo : conversa || mensagens.length ? tituloDaConversa((valoresAtuais as { nome?: string }).nome, meta?.resumo, mensagens) : `Nova ${nomeItem} com IA`}</h1>
+          <h1>{editar ? fr.valores.nome || editar.nome : concluida ? conversa?.titulo : conversa || mensagens.length ? tituloDaConversa((valoresAtuais as { nome?: string }).nome, meta?.resumo, mensagens) : `Nova ${nomeItem} com IA`}</h1>
           <span className="sutil salvo">
-            {concluida ? <>Cadastrada · conversa salva</> : salvoEm ? <><i className="ponto-salvo" />Rascunho salvo {quandoLegivel(salvoEm)}</> : 'Conte, cole ou anexe. Tudo é salvo como rascunho até você confirmar.'}
+            {editar ? <>{editar.ativa ? 'Editando' : 'Pausada · editando'}{salvoEm ? <> · <i className="ponto-salvo" />conversa salva {quandoLegivel(salvoEm)}</> : ' · peça mudanças no chat ou edite ao lado'}</> : concluida ? <>Cadastrada · conversa salva</> : salvoEm ? <><i className="ponto-salvo" />Rascunho salvo {quandoLegivel(salvoEm)}</> : 'Conte, cole ou anexe. Tudo é salvo como rascunho até você confirmar.'}
           </span>
         </div>
+        {editar && (
+          <div className="acoes-item">
+            <button className="botao secundario" onClick={async () => { await alternarReceita(editar.id, !editar.ativa); concluir(`${editar.nome} ${editar.ativa ? 'pausada: saiu da previsão' : 'reativada'}.`) }}>
+              {editar.ativa ? 'Pausar' : 'Reativar'}
+            </button>
+            <BotaoExcluir rotulo="Excluir" onConfirmar={async () => { await excluirReceita(editar.id); concluir(`${editar.nome} excluída.`) }} />
+          </div>
+        )}
         <button className="botao secundario botao-conversas" onClick={() => setHistoricoAberto(true)} title="Conversas e rascunhos">
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>
           Conversas
@@ -329,10 +353,12 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar }: 
             {!mensagens.length && (
               <div className="chat-vazio">
                 <div className="chat-vazio-icone"><Simbolo tamanho={44} /></div>
-                <h2>Como é essa {nomeItem}?</h2>
-                <p>Escreva do seu jeito ou anexe qualquer arquivo: contrato, boleto, extrato, print, PDF, planilha, foto. Eu leio, extraio os detalhes e monto o cadastro ao lado.</p>
+                <h2>{editar ? `O que mudou em ${editar.nome}?` : `Como é essa ${nomeItem}?`}</h2>
+                <p>{editar
+                  ? 'Conte a mudança ou anexe a nota, holerite ou contrato novo. Eu atualizo os campos ao lado e você salva quando estiver certo.'
+                  : 'Escreva do seu jeito ou anexe qualquer arquivo: contrato, boleto, extrato, print, PDF, planilha, foto. Eu leio, extraio os detalhes e monto o cadastro ao lado.'}</p>
                 <div className="chat-sugestoes">
-                  {SUGESTOES[alvo].map((s) => <button key={s} onClick={() => { setTexto(s); caixa.current?.focus() }}>{s}</button>)}
+                  {(editar ? SUGESTOES_EDICAO : SUGESTOES[alvo]).map((s) => <button key={s} onClick={() => { setTexto(s); caixa.current?.focus() }}>{s}</button>)}
                 </div>
               </div>
             )}
@@ -387,7 +413,7 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar }: 
             {(arrastando || arrastandoJanela) && <div className="composer-soltar"><IconeArquivo nome="" />{arrastando ? 'Solte para anexar' : 'Arraste até aqui para anexar'}</div>}
             <textarea
               ref={caixa} rows={1} value={texto} autoFocus disabled={rodando}
-              placeholder={mensagens.length ? 'Responda, corrija algo ou tire uma dúvida…' : `Descreva a ${nomeItem} ou anexe arquivos…`}
+              placeholder={mensagens.length ? 'Responda, corrija algo ou tire uma dúvida…' : editar ? 'Conte o que mudou ou anexe um arquivo novo…' : `Descreva a ${nomeItem} ou anexe arquivos…`}
               onChange={(e) => setTexto(e.target.value)} onKeyDown={teclar}
               onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); anexar(e.clipboardData.files) } }}
             />
@@ -435,8 +461,8 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar }: 
               : <CamposReceitaForm f={fr} categorias={dados.categorias} contas={contas} destacar={destacar} />}
           </div>
           <div className="revisao-rodape">
-            <button className="botao secundario" onClick={sairSalvando}>{concluida ? 'Voltar' : 'Sair (fica salvo)'}</button>
-            {!concluida && <button className="botao laranja" onClick={confirmar} disabled={salvando || rodando}>{salvando ? 'Salvando…' : `Confirmar e cadastrar`}</button>}
+            <button className="botao secundario" onClick={sairSalvando}>{concluida || editar ? 'Voltar' : 'Sair (fica salvo)'}</button>
+            {!concluida && <button className="botao laranja" onClick={confirmar} disabled={salvando || rodando}>{salvando ? 'Salvando…' : editar ? 'Salvar alterações' : `Confirmar e cadastrar`}</button>}
           </div>
         </aside>
       </div>

@@ -116,3 +116,10 @@ export async function salvarConversa(c: Omit<ConversaIA, 'criado_em' | 'atualiza
 export async function excluirConversa(id: string) {
   await (await banco()).execute('DELETE FROM conversas_ia WHERE id = $1', [id])
 }
+
+/** Última conversa ligada a um item cadastrado (para editar com o histórico). */
+export async function buscarConversaDoItem(alvo: AlvoAssistente, item_id: number): Promise<ConversaIA | null> {
+  const [l] = await (await banco()).select<LinhaConversa>(
+    'SELECT * FROM conversas_ia WHERE alvo = $1 AND item_id = $2 ORDER BY atualizado_em DESC LIMIT 1', [alvo, item_id])
+  return l ? daLinha(l) : null
+}

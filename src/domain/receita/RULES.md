@@ -10,4 +10,5 @@
   - **Variável**: a média esperada, com faixa opcional (mínimo e máximo).
   - **Por hora**: dias úteis do mês trabalhado × horas por dia × valor da hora, menos o desconto % (retenções/taxas entre o bruto e o que cai). O mês trabalhado é o do recebimento menos a defasagem (1 = paga no mês seguinte, como NF emitida no início do mês).
 - Dias úteis: segunda a sexta, sem feriados nacionais (inclui Sexta-feira Santa e Consciência Negra; Carnaval e Corpus Christi são pontos facultativos e não descontam).
-- **Ajuste do mês** (`receitas_mes`): troca os dias trabalhados ou fixa o valor só naquele mês; "voltar ao calculado" remove o ajuste.
+- A previsão é sempre calculada pela regra (sem ajuste manual por mês). Na regra por hora a tela mostra bruto, taxas (o desconto %) e o líquido previsto.
+- Editar uma receita abre o assistente com o chat ligado a ela; pausar e excluir ficam lá.
