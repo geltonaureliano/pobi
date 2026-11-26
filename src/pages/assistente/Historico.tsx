@@ -4,6 +4,7 @@ import { excluirConversa, listarConversas } from '../../domain/assistente/reposi
 import { quandoLegivel } from '../../domain/assistente/rules'
 import { BotaoExcluir } from '../../ui/components/Modal'
 import { Simbolo } from '../../ui/components/Marca'
+import { toast } from '../../ui/toast'
 
 /** Gaveta lateral com as conversas do assistente: rascunhos para continuar e cadastros já feitos. */
 export function HistoricoConversas({ alvo, aberto, fechar, abrir, nova, atual, versao = 0 }: {
@@ -77,6 +78,7 @@ export function HistoricoConversas({ alvo, aberto, fechar, abrir, nova, atual, v
                 </button>
                 <BotaoExcluir icone rotulo={`Excluir conversa ${c.titulo}`} onConfirmar={async () => {
                   await excluirConversa(c.id)
+                  toast.info('Conversa excluída', c.titulo)
                   setConversas((x) => x?.filter((y) => y.id !== c.id) ?? null)
                 }} />
               </div>

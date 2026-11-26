@@ -12,6 +12,7 @@ import { Barra } from '../ui/components/Barra'
 import { useForm } from '../ui/useForm'
 import { Dinheiro } from '../ui/components/Dinheiro'
 import type { Dados } from '../ui/useDados'
+import { toast } from '../ui/toast'
 
 const reais = (c: number) => (c / 100).toFixed(2).replace('.', ',')
 
@@ -37,6 +38,7 @@ export function Cartoes({ dados, recarregar }: { dados: Dados; recarregar: () =>
     if (!r.ok) return fk.setErros(r.erros)
     if (cartaoEd === 'novo') await criarCartao(r.valor)
     else if (cartaoEd != null) await atualizarCartao(cartaoEd, r.valor)
+    toast.sucesso(cartaoEd === 'novo' ? 'Cartão adicionado' : 'Cartão atualizado', r.valor.nome)
     setCartaoEd(null); recarregar()
   }
   function abrirPagamento(cartao: Cartao, fatura: ResumoFatura) {
@@ -52,6 +54,7 @@ export function Cartoes({ dados, recarregar }: { dados: Dados; recarregar: () =>
       data: fp.valores.data, conta_id: Number(fp.valores.conta_id), conta_destino_id: null, cartao_id: null, categoria_id: null,
       observacao: null, fatura_ref: marcaDePagamento(pagando.cartao.id, pagando.fatura.fatura),
     })
+    toast.sucesso('Fatura paga', `${pagando.cartao.nome} · ${rotuloCompetencia(pagando.fatura.fatura)}`)
     setPagando(null); recarregar()
   }
 
@@ -69,7 +72,7 @@ export function Cartoes({ dados, recarregar }: { dados: Dados; recarregar: () =>
             <div key={k.id} style={{ marginBottom: 22 }}>
               <div className="secao-topo" style={{ marginBottom: 10 }}>
                 <div><strong>{k.nome}</strong> <span className="sutil">· fecha dia {k.dia_fechamento} · vence dia {k.dia_vencimento}</span></div>
-                <div className="acoes"><button className="aba" onClick={() => abrirCartao(k)}>editar</button><BotaoExcluir rotulo="remover" onConfirmar={async () => { await excluirCartao(k.id); recarregar() }} /></div>
+                <div className="acoes"><button className="aba" onClick={() => abrirCartao(k)}>editar</button><BotaoExcluir rotulo="remover" aviso={`Cartão ${k.nome} removido`} onConfirmar={async () => { await excluirCartao(k.id); recarregar() }} /></div>
               </div>
               <Barra rotulo={`Limite usado ${formatarBRL(aberto)} de ${formatarBRL(k.limite)}`} direita={`disponível ${formatarBRL(k.limite - aberto)}`} fracao={k.limite ? aberto / k.limite : 0} estourada={aberto > k.limite} />
               <table className="tabela">

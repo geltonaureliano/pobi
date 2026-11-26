@@ -4,6 +4,7 @@ import { useDados } from './ui/useDados'
 import { Marca } from './ui/components/Marca'
 import { BarraTitulo } from './ui/components/BarraTitulo'
 import { Perfil } from './ui/components/Perfil'
+import { Toaster } from './ui/components/Toaster'
 import { Painel } from './pages/Painel'
 import { Lancamentos } from './pages/Lancamentos'
 import { Contas } from './pages/Contas'
@@ -74,6 +75,7 @@ export default function App() {
       </aside>
       <main className="conteudo"><div className="painel" key={pagina}>{corpo}</div></main>
       </div>
+      <Toaster />
     </div>
   )
 }

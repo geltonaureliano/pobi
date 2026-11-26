@@ -16,6 +16,7 @@ import type { Dados } from '../ui/useDados'
 import { Assistente } from './assistente/Assistente'
 import { BotaoConversas, HistoricoConversas } from './assistente/Historico'
 import { CamposReceitaForm } from './assistente/formularios'
+import { toast } from '../ui/toast'
 
 const ROTULO_REGRA = { FIXA: 'fixa', VARIAVEL: 'variável', HORAS: 'por hora' } as const
 const fontes = (n: number) => `${n} ${n === 1 ? 'fonte' : 'fontes'}`
@@ -41,7 +42,6 @@ export function Receitas({ dados, recarregar }: { dados: Dados; recarregar: () =
   const [escolhendo, setEscolhendo] = useState(false)
   const [assistente, setAssistente] = useState<{ conversa: ConversaIA | null; editar: Receita | null } | null>(null)
   const [historico, setHistorico] = useState(false)
-  const [aviso, setAviso] = useState<string | null>(null)
   const [editando, setEditando] = useState<Receita | 'nova' | null>(null)
   const principal = String(dados.contas.find((x) => x.principal)?.id ?? '')
   const form = useForm<CamposReceita>(receitaVazia(principal))
@@ -62,7 +62,7 @@ export function Receitas({ dados, recarregar }: { dados: Dados; recarregar: () =
     const { conversa: conv, editar } = assistente
     return <Assistente key={`${editar?.id ?? ''}-${conv?.id ?? 'nova'}`} alvo="receita" dados={dados} conversa={conv} editar={editar}
       trocar={(x) => setAssistente({ conversa: x, editar: null })}
-      voltar={() => setAssistente(null)} concluir={(msg) => { setAssistente(null); setAviso(msg); recarregar() }} />
+      voltar={() => setAssistente(null)} concluir={(msg) => { setAssistente(null); toast.sucesso(msg); recarregar() }} />
   }
 
   /** Editar abre a página do assistente, com o chat ligado a essa receita. */
@@ -79,6 +79,7 @@ export function Receitas({ dados, recarregar }: { dados: Dados; recarregar: () =
     if (!r.ok) return form.setErros(r.erros)
     if (editando === 'nova') await criarReceita(r.valor)
     else if (editando) await atualizarReceita(editando.id, r.valor)
+    toast.sucesso(editando === 'nova' ? 'Receita cadastrada' : 'Receita atualizada', r.valor.nome)
     setEditando(null); recarregar()
   }
   return (
@@ -99,7 +100,6 @@ export function Receitas({ dados, recarregar }: { dados: Dados; recarregar: () =
         abrir={async (id) => { const x = await buscarConversa(id); if (x) setAssistente({ conversa: x, editar: x.status === 'CONCLUIDA' && x.item_id ? dados.receitas.find((r) => r.id === x.item_id) ?? null : null }) }} />
       <EscolhaCadastro aberto={escolhendo} fechar={() => setEscolhendo(false)} titulo="Nova receita" item="da receita"
         manual={() => { setEscolhendo(false); abrir() }} ia={() => { setEscolhendo(false); setAssistente({ conversa: null, editar: null }) }} />
-      {aviso && <div className="secao"><div className="aviso sucesso">{aviso}</div></div>}
 
       <div className="cards" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="card">

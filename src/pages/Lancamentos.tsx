@@ -10,6 +10,7 @@ import { Campo, Vazio, Texto, Busca, Data, Moeda, Selecao, MultiSelecao, Segment
 import { useForm } from '../ui/useForm'
 import { Dinheiro } from '../ui/components/Dinheiro'
 import type { Dados } from '../ui/useDados'
+import { toast } from '../ui/toast'
 
 const vazio = (): CamposLancamento => ({
   descricao: '', valor: '', tipo: 'DESPESA', data: hoje(), conta_id: '', conta_destino_id: '', cartao_id: '', categoria_id: '', pendente: false,
@@ -27,7 +28,6 @@ export function Lancamentos({ dados, recarregar }: { dados: Dados; recarregar: (
   const [fCat, setFCat] = useState<string[]>([])
   const [fOrigem, setFOrigem] = useState('')
   const [editando, setEditando] = useState<number | 'novo' | null>(null)
-  const [aviso, setAviso] = useState<string | null>(null)
   const form = useForm<CamposLancamento>(vazio())
   const f = form.valores
 
@@ -55,22 +55,25 @@ export function Lancamentos({ dados, recarregar }: { dados: Dados; recarregar: (
     if (!r.ok) return form.setErros(r.erros)
     if (editando === 'novo') await criarLancamento(r.valor)
     else if (editando != null) await atualizarLancamento(editando, r.valor)
+    toast.sucesso(editando === 'novo' ? 'Lançamento adicionado' : 'Lançamento atualizado', r.valor.descricao)
     recarregar()
     if (continuar) form.reiniciar({ ...vazio(), tipo: f.tipo, data: f.data, conta_id: f.conta_id, cartao_id: f.cartao_id })
     else setEditando(null)
   }
   async function marcarPago(l: LancamentoDetalhado) {
     await atualizarLancamento(l.id, { ...l, status: 'PAGO' })
+    toast.sucesso('Marcado como pago', l.descricao)
     recarregar()
   }
   async function importar(arquivo: File) {
     const conta = Number(contasAtivas.find((x) => x.principal)?.id ?? contasAtivas[0]?.id)
-    if (!conta) return setAviso('Cadastre uma conta antes de importar.')
+    if (!conta) return toast.aviso('Cadastre uma conta antes de importar.')
     const r = lerCSV(await arquivo.text(), conta)
     const n = await importarLancamentos(
       r.linhas.map((l) => ({ ...l, status: 'PAGO', conta_id: conta, conta_destino_id: null, cartao_id: null, categoria_id: null, observacao: null })),
     )
-    setAviso(`${n} lançamentos importados na conta principal, ${r.linhas.length - n} já existiam, ${r.ignoradas.length} linhas ignoradas.${r.ignoradas.length ? ' ' + r.ignoradas.slice(0, 3).map((i) => `linha ${i.linha}: ${i.motivo}`).join('; ') : ''}`)
+    toast[n ? 'sucesso' : 'info'](`${n} ${n === 1 ? 'lançamento importado' : 'lançamentos importados'}`,
+      `${r.linhas.length - n} já existiam · ${r.ignoradas.length} linhas ignoradas${r.ignoradas.length ? `: ${r.ignoradas.slice(0, 3).map((i) => `linha ${i.linha}, ${i.motivo}`).join('; ')}` : ''}`)
     recarregar()
   }
   const origem = (l: LancamentoDetalhado) =>
@@ -102,7 +105,6 @@ export function Lancamentos({ dados, recarregar }: { dados: Dados; recarregar: (
             <button className="botao" onClick={() => abrir()}>Novo lançamento</button>
           </div>
         </div>
-        {aviso && <div className="aviso">{aviso}</div>}
         <div className="filtros">
           <Busca value={busca} onChange={setBusca} placeholder="Buscar descrição ou categoria" />
           <Selecao value={fTipo} onChange={setFTipo} vazio="Todos os tipos" itens={[
@@ -134,7 +136,7 @@ export function Lancamentos({ dados, recarregar }: { dados: Dados; recarregar: (
                     <div className="acoes">
                       {l.status === 'PENDENTE' && <button className="aba ativa" onClick={() => marcarPago(l)}>pagar</button>}
                       {!l.fatura_ref && <button className="aba" onClick={() => abrir(l)}>editar</button>}
-                      <BotaoExcluir onConfirmar={async () => { await excluirLancamentoComVinculos(l.id); recarregar() }} />
+                      <BotaoExcluir aviso="Lançamento excluído" onConfirmar={async () => { await excluirLancamentoComVinculos(l.id); recarregar() }} />
                     </div>
                   </td>
                 </tr>

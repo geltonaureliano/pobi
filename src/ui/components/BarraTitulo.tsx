@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { toast } from '../toast'
 
 const noTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
@@ -17,7 +18,7 @@ export function BarraTitulo({ recarregar }: { recarregar: () => Promise<void> | 
 
   async function atualizar() {
     setGirando(true)
-    try { await recarregar() } finally { setTimeout(() => setGirando(false), 400) }
+    try { await recarregar(); toast.info('Dados atualizados') } finally { setTimeout(() => setGirando(false), 400) }
   }
 
   return (

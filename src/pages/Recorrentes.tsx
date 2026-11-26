@@ -11,6 +11,7 @@ import { Campo, Vazio, Texto, Data, Moeda, Selecao } from '../ui/components/Camp
 import { useForm } from '../ui/useForm'
 import { Dinheiro } from '../ui/components/Dinheiro'
 import type { Dados } from '../ui/useDados'
+import { toast } from '../ui/toast'
 
 type Item = CustoFixo
 const reais = (c: number) => (c / 100).toFixed(2).replace('.', ',')
@@ -34,6 +35,7 @@ function useRecorrente(dados: Dados, recarregar: () => void) {
     const v = r.valor
     const d = { nome: v.nome, valor: v.valor, dia_vencimento: v.dia, inicio: v.inicio, fim: v.fim, conta_id: v.conta_id, cartao_id: v.cartao_id, categoria_id: v.categoria_id, observacao: v.observacao }
     if (editando === 'novo') await criarCustoFixo(d); else if (editando != null) await atualizarCustoFixo(editando, d)
+    toast.sucesso(editando === 'novo' ? 'Custo fixo cadastrado' : 'Custo fixo atualizado', v.nome)
     setEditando(null); recarregar()
   }
   const cats = dados.categorias.filter((k) => k.tipo === 'DESPESA')
@@ -103,9 +105,9 @@ export function CustosFixos({ dados, recarregar }: { dados: Dados; recarregar: (
                     <td>{s ? <span className={`tag ${s === 'pago' ? 'bom' : s === 'pendente' ? 'laranja' : ''}`}>{s === 'faltando' ? 'não lançado' : s}</span> : <span className="sutil">fora da vigência</span>}</td>
                     <td className="num"><Dinheiro valor={cf.valor} /></td>
                     <td><div className="acoes">
-                      <button className="aba" onClick={async () => { await alternarCustoFixo(cf.id, !cf.ativo); recarregar() }}>{cf.ativo ? 'pausar' : 'reativar'}</button>
+                      <button className="aba" onClick={async () => { await alternarCustoFixo(cf.id, !cf.ativo); toast.info(cf.ativo ? 'Custo pausado' : 'Custo reativado', cf.nome); recarregar() }}>{cf.ativo ? 'pausar' : 'reativar'}</button>
                       <button className="aba" onClick={() => abrir(cf)}>editar</button>
-                      <BotaoExcluir onConfirmar={async () => { await excluirCustoFixo(cf.id); recarregar() }} />
+                      <BotaoExcluir aviso={`Custo ${cf.nome} excluído`} onConfirmar={async () => { await excluirCustoFixo(cf.id); recarregar() }} />
                     </div></td>
                   </tr>
                 )
@@ -115,7 +117,7 @@ export function CustosFixos({ dados, recarregar }: { dados: Dados; recarregar: (
         ) : <Vazio>Cadastre aluguel, internet, assinaturas… O app avisa o que falta pagar em cada mês.</Vazio>}
       </div>
       <Modal titulo={`Gerar lançamentos de ${rotuloCompetencia(c)}`} aberto={gerando} fechar={() => setGerando(false)} largura={560}
-        rodape={<button className="botao" onClick={async () => { await importarLancamentos(aGerar); setGerando(false); recarregar() }}>Criar {aGerar.length} lançamentos pendentes</button>}>
+        rodape={<button className="botao" onClick={async () => { await importarLancamentos(aGerar); setGerando(false); toast.sucesso(`${aGerar.length} lançamentos pendentes criados`, rotuloCompetencia(c)); recarregar() }}>Criar {aGerar.length} lançamentos pendentes</button>}>
         <div style={{ gridColumn: '1 / -1' }}>
           <p className="sutil" style={{ marginTop: 0 }}>Serão criados como <b>pendentes</b>, na data de vencimento. Depois é só marcar como pago em Lançamentos. Custos já lançados no mês ficam de fora.</p>
           {aGerar.map((l) => (

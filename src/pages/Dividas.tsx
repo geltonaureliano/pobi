@@ -17,6 +17,7 @@ import { Campo, Vazio, Data, Moeda, Selecao } from '../ui/components/Campos'
 import { useForm } from '../ui/useForm'
 import { Dinheiro } from '../ui/components/Dinheiro'
 import type { Dados } from '../ui/useDados'
+import { toast } from '../ui/toast'
 
 const reais = (c: number) => (c / 100).toFixed(2).replace('.', ',')
 const br = (d: string) => d.split('-').reverse().join('/')
@@ -30,7 +31,6 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
   const [escolhendo, setEscolhendo] = useState(false)
   const [conversa, setConversa] = useState<ConversaIA | 'nova' | null>(null)
   const [historico, setHistorico] = useState(false)
-  const [aviso, setAviso] = useState<string | null>(null)
   const fp = useForm({ conta_id: '', valor: '', data: hoje() })
   const fa = useForm({ valor: '', vencimento: '' })
   const hojeISO = hoje()
@@ -49,6 +49,7 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
     if (!r.ok) return fd.setErros(r.erros)
     if (editando === 'nova') await criarDivida(r.nova)
     else if (editando) await atualizarDivida(editando.id, r.edicao)
+    toast.sucesso(editando === 'nova' ? 'Dívida cadastrada' : 'Dívida atualizada', fd.valores.nome)
     setEditando(null); recarregar()
   }
   function abrirPagamento(divida: Divida, parcela: Parcela) {
@@ -60,13 +61,14 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
     const v = paraCentavos(fp.valores.valor)
     if (v == null || v <= 0 || !dataValida(fp.valores.data)) return fp.setErros({ valor: 'Valor e data válidos.' })
     await pagarParcela({ ...pagando, data: fp.valores.data, valor: v, conta_id: fp.valores.conta_id ? Number(fp.valores.conta_id) : null, categoria_id: catDividas ?? null })
+    toast.sucesso(`Parcela ${pagando.parcela.numero} paga`, pagando.divida.nome)
     setPagando(null); recarregar()
   }
 
   if (conversa) {
     const c = conversa === 'nova' ? null : conversa
     return <Assistente key={c?.id ?? 'nova'} alvo="divida" dados={dados} conversa={c} trocar={(x) => setConversa(x ?? 'nova')}
-      voltar={() => setConversa(null)} concluir={(msg) => { setConversa(null); setAviso(msg); recarregar() }} />
+      voltar={() => setConversa(null)} concluir={(msg) => { setConversa(null); toast.sucesso(msg); recarregar() }} />
   }
 
   return (
@@ -80,7 +82,6 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
       </div>
       <HistoricoConversas alvo="divida" aberto={historico} fechar={() => setHistorico(false)} nova={() => setConversa('nova')}
         abrir={async (id) => { const c = await buscarConversa(id); if (c) setConversa(c) }} />
-      {aviso && <div className="secao"><div className="aviso sucesso">{aviso}</div></div>}
       <div className="cards" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="card"><h3>Saldo devedor</h3><div className="valor"><Dinheiro valor={saldoDevedor(todasParcelas)} animar /></div></div>
         <div className="card"><h3>Próximos 30 dias</h3><div className="valor"><Dinheiro valor={prox30} animar /></div></div>
@@ -110,7 +111,7 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
                 <span className={`tag ${d.status === 'QUITADA' ? 'bom' : atrasadas ? 'ruim' : ''}`}>{d.status === 'QUITADA' ? 'quitada' : d.status === 'RENEGOCIADA' ? 'renegociada' : atrasadas ? `${atrasadas} atrasada(s)` : 'em dia'}</span>
                 <button className="aba" onClick={() => setAberta(aberta === d.id ? null : d.id)}>{aberta === d.id ? 'ocultar parcelas' : 'parcelas'}</button>
                 <button className="aba" onClick={() => abrir(d)}>editar</button>
-                <BotaoExcluir onConfirmar={async () => { await excluirDivida(d.id); recarregar() }} />
+                <BotaoExcluir aviso={`Dívida ${d.nome} excluída`} onConfirmar={async () => { await excluirDivida(d.id); recarregar() }} />
               </div>
             </div>
             <Barra rotulo={`${formatarBRL(saldoDevedor(ps))} em aberto de ${formatarBRL(d.valor_total)}`} direita={`${ps.filter((p) => p.pago_em).length}/${ps.length} pagas`} fracao={progressoDaDivida(ps)} />
@@ -160,7 +161,7 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
       <Modal titulo={ajustando ? `Ajustar parcela ${ajustando.numero}` : ''} aberto={ajustando != null} fechar={() => setAjustando(null)} largura={480} rodape={<button className="botao" onClick={async () => {
         const v = paraCentavos(fa.valores.valor)
         if (!ajustando || v == null || v <= 0 || !dataValida(fa.valores.vencimento)) return fa.setErros({ valor: 'Valor e data válidos.' })
-        await atualizarParcela(ajustando.id, v, fa.valores.vencimento); setAjustando(null); recarregar()
+        await atualizarParcela(ajustando.id, v, fa.valores.vencimento); setAjustando(null); toast.sucesso(`Parcela ${ajustando.numero} ajustada`); recarregar()
       }}>Salvar</button>}>
         <Campo rotulo="Valor" erro={fa.erros.valor}><Moeda {...fa.campo('valor')} /></Campo>
         <Campo rotulo="Vencimento"><Data {...fa.campo('vencimento')} /></Campo>

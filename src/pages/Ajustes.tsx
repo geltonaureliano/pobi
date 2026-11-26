@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Motor } from '../domain/analise/model'
 import { lerAjuste, motoresDisponiveis, salvarAjuste, type MotorDisponivel } from '../domain/analise/repository'
 import { emTauri } from '../db/client'
+import { toast } from '../ui/toast'
 
 export function Ajustes() {
   const [motores, setMotores] = useState<MotorDisponivel[]>([])
@@ -21,7 +22,7 @@ export function Ajustes() {
               <strong>{m.motor === 'claude' ? 'Claude Code' : 'Codex'}</strong>
               <div className="sutil">{m.caminho ?? (emTauri() ? 'não encontrado neste computador' : 'verificado só no app desktop')}</div>
             </div>
-            <button className={`aba ${motor === m.motor ? 'ativa' : ''}`} onClick={async () => { await salvarAjuste('motor', m.motor); setMotor(m.motor) }}>
+            <button className={`aba ${motor === m.motor ? 'ativa' : ''}`} onClick={async () => { await salvarAjuste('motor', m.motor); setMotor(m.motor); toast.sucesso(`Usando o ${m.motor === 'claude' ? 'Claude Code' : 'Codex'} nas análises`) }}>
               {motor === m.motor ? 'em uso' : 'usar'}
             </button>
           </div>

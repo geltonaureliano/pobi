@@ -21,6 +21,7 @@ import { Simbolo } from '../../ui/components/Marca'
 import type { Dados } from '../../ui/useDados'
 import { CamposDividaForm, CamposReceitaForm } from './formularios'
 import { HistoricoConversas } from './Historico'
+import { toast } from '../../ui/toast'
 
 const MAX_ARQUIVO = 20 * 1024 * 1024
 
@@ -100,7 +101,6 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
   const arrastosJanela = useRef(0)
   const [destacar, setDestacar] = useState<string[]>([])
   const [salvando, setSalvando] = useState(false)
-  const [aviso, setAviso] = useState<string | null>(null)
   const lista = useRef<HTMLDivElement>(null)
   const seletor = useRef<HTMLInputElement>(null)
   const caixa = useRef<HTMLTextAreaElement>(null)
@@ -175,11 +175,10 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
   }, [texto])
 
   async function anexar(lista: FileList | File[]) {
-    setAviso(null)
     const novos: AnexoLocal[] = []
     for (const f of Array.from(lista)) {
-      if (f.size > MAX_ARQUIVO) { setAviso(`${f.name} passa de 20 MB e ficou de fora.`); continue }
-      try { novos.push(await lerArquivo(f)) } catch (e) { setAviso((e as Error).message) }
+      if (f.size > MAX_ARQUIVO) { toast.aviso(`${f.name} ficou de fora`, 'O limite é 20 MB por arquivo.'); continue }
+      try { novos.push(await lerArquivo(f)) } catch (e) { toast.erro('Não consegui ler o arquivo', (e as Error).message) }
     }
     setPendentes((p) => [...p, ...novos])
   }
@@ -245,13 +244,13 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
     try {
       if (alvo === 'divida') {
         const r = validarDivida(fd.valores, true)
-        if (!r.ok) { fd.setErros(r.erros); rolarAteErro(); return }
+        if (!r.ok) { fd.setErros(r.erros); rolarAteErro(); toast.aviso('Faltam dados para cadastrar', 'Veja os campos marcados ao lado.'); return }
         const id = await criarDivida({ ...r.nova, origem: 'IA' })
         await marcarConcluida(r.nova.nome, id ?? null)
         concluir(`${r.nova.nome} cadastrada com ${r.nova.parcelas} parcelas.`)
       } else {
         const r = validarReceita(fr.valores)
-        if (!r.ok) { fr.setErros(r.erros); rolarAteErro(); return }
+        if (!r.ok) { fr.setErros(r.erros); rolarAteErro(); toast.aviso('Faltam dados para salvar', 'Veja os campos marcados ao lado.'); return }
         const v = r.valor
         if (editar) {
           await atualizarReceita(editar.id, v)
@@ -399,7 +398,6 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
             onDragLeave={sair}
             onDrop={soltar}
           >
-            {aviso && <div className="composer-aviso">{aviso}</div>}
             {pendentes.length > 0 && (
               <div className="composer-anexos">
                 {pendentes.map((a) => (

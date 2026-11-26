@@ -9,6 +9,7 @@ import { Dinheiro } from '../ui/components/Dinheiro'
 import { Campo, Texto, Interruptor, Segmentos, Busca, Vazio } from '../ui/components/Campos'
 import { useForm } from '../ui/useForm'
 import type { Dados } from '../ui/useDados'
+import { toast } from '../ui/toast'
 
 const CORES = ['#EA9A19', '#1C1C1C', '#C9412E', '#1F9D55', '#3B6FD4', '#8E5BD1', '#D45B9A', '#2AA3A3', '#A39A5B', '#77756C']
 const corDe = (k: Categoria) => k.cor ?? CORES[k.id % CORES.length]
@@ -16,7 +17,6 @@ const corDe = (k: Categoria) => k.cor ?? CORES[k.id % CORES.length]
 export function Categorias({ dados, recarregar }: { dados: Dados; recarregar: () => void }) {
   const [tipo, setTipo] = useState<TipoCategoria>('DESPESA')
   const [editando, setEditando] = useState<Categoria | 'nova' | null>(null)
-  const [aviso, setAviso] = useState<string | null>(null)
   const f = useForm({ nome: '', essencial: false, cor: CORES[0] })
   const [busca, setBusca] = useState('')
   const c = competenciaDe(hoje())
@@ -60,6 +60,7 @@ export function Categorias({ dados, recarregar }: { dados: Dados; recarregar: ()
       const id = await criarCategoria(nome, tipo, f.valores.essencial)
       if (id) await atualizarCategoria(id, nome, f.valores.essencial, f.valores.cor)
     } else if (editando) await atualizarCategoria(editando.id, nome, f.valores.essencial, f.valores.cor)
+    toast.sucesso(editando === 'nova' ? 'Categoria criada' : 'Categoria atualizada', nome)
     setEditando(null); recarregar()
   }
 
@@ -75,7 +76,6 @@ export function Categorias({ dados, recarregar }: { dados: Dados; recarregar: ()
         <div className="card"><h3>Sem uso</h3><div className="valor">{semUso}</div><span className="sutil">sem lançamentos nem recorrentes</span></div>
       </div>
       <div className="secao">
-        {aviso && <div className="aviso">{aviso}</div>}
         <div className="cat-barra-topo">
           <div style={{ width: 260 }}><Segmentos value={tipo} onChange={(v) => setTipo(v as TipoCategoria)} itens={[{ id: 'DESPESA', nome: 'Despesas' }, { id: 'RECEITA', nome: 'Receitas' }]} /></div>
           <Busca value={busca} onChange={setBusca} placeholder="Buscar categoria" />
@@ -110,7 +110,8 @@ export function Categorias({ dados, recarregar }: { dados: Dados; recarregar: ()
                       <button className="botao-icone" onClick={() => abrir(k)} aria-label={`Editar ${k.nome}`} title="Editar"><IconeEditar /></button>
                       <BotaoExcluir icone rotulo={`Excluir ${k.nome}`} onConfirmar={async () => {
                         const r = await excluirCategoria(k.id)
-                        setAviso(r === 'em-uso' ? `${k.nome} está em uso (lançamentos, orçamentos ou recorrentes) e não foi excluída.` : null)
+                        if (r === 'em-uso') toast.aviso(`${k.nome} não foi excluída`, 'Está em uso em lançamentos, orçamentos ou recorrentes.')
+                        else toast.sucesso('Categoria excluída', k.nome)
                         recarregar()
                       }} />
                     </div>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { lerAjuste, salvarAjuste } from '../../domain/analise/repository'
 import type { ContaComSaldo } from '../../domain/conta/model'
 import { formatarBRL, formatarCompacto } from '../../shared/dinheiro'
+import { toast } from '../toast'
 
 const NOME_PADRAO = 'Gelton'
 
@@ -25,6 +26,7 @@ export function Perfil({ contas }: { contas: ContaComSaldo[] | undefined }) {
     if (!novo || novo === nome) return
     setNome(novo)
     await salvarAjuste('nome', novo)
+    toast.sucesso('Nome atualizado', novo)
   }
 
   const ativas = contas?.filter((c) => !c.arquivada) ?? []

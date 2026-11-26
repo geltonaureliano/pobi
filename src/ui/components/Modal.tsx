@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { toast } from '../toast'
 
 const SAIDA_MS = 180
 
@@ -44,14 +45,22 @@ export const IconeEditar = () => (<svg viewBox="0 0 16 16" aria-hidden="true"><p
 const IconeLixo = () => (<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>)
 
 /** Botão de excluir que pede confirmação no segundo clique. `icone` mostra só a lixeira. */
-export function BotaoExcluir({ onConfirmar, rotulo = 'excluir', icone }: { onConfirmar: () => void | Promise<void>; rotulo?: string; icone?: boolean }) {
+export function BotaoExcluir({ onConfirmar, rotulo = 'excluir', icone, aviso }: { onConfirmar: () => void | Promise<void>; rotulo?: string; icone?: boolean; aviso?: string }) {
   const [confirmando, setConfirmando] = useState(false)
   useEffect(() => {
     if (!confirmando) return
     const t = setTimeout(() => setConfirmando(false), 3000)
     return () => clearTimeout(t)
   }, [confirmando])
-  const agir = () => (confirmando ? onConfirmar() : setConfirmando(true))
+  async function agir() {
+    if (!confirmando) return setConfirmando(true)
+    try {
+      await onConfirmar()
+      if (aviso) toast.sucesso(aviso)
+    } catch (e) {
+      toast.erro('Não deu para excluir', e instanceof Error ? e.message : String(e))
+    }
+  }
   if (icone) {
     return (
       <button className={`botao-icone perigo ${confirmando ? 'confirmando' : ''}`} onClick={agir} aria-label={confirmando ? 'Confirmar exclusão' : rotulo} title={confirmando ? 'Clique de novo para confirmar' : rotulo}>
