@@ -5,7 +5,7 @@ import { atualizarCategoria, criarCategoria, excluirCategoria } from '../domain/
 import type { Categoria, TipoCategoria } from '../domain/categoria/model'
 import { despesaPorCategoria } from '../domain/lancamento/rules'
 import { Modal, BotaoExcluir } from '../ui/components/Modal'
-import { Campo } from '../ui/components/Campos'
+import { Campo, Texto, Interruptor } from '../ui/components/Campos'
 import { useForm } from '../ui/useForm'
 import type { Dados } from '../ui/useDados'
 
@@ -75,7 +75,7 @@ export function Categorias({ dados, recarregar }: { dados: Dados; recarregar: ()
         </div>
       </div>
       <Modal titulo={editando === 'nova' ? 'Nova categoria' : 'Editar categoria'} aberto={editando != null} fechar={() => setEditando(null)} largura={480} rodape={<button className="botao" onClick={salvar}>Salvar</button>}>
-        <Campo rotulo="Nome" erro={f.erros.nome} largo><input autoFocus {...f.campo('nome')} /></Campo>
+        <Campo rotulo="Nome" erro={f.erros.nome} largo><Texto autoFocus {...f.campo('nome')} /></Campo>
         <div style={{ gridColumn: '1 / -1' }}>
           <div className="sutil" style={{ marginBottom: 8 }}>Cor</div>
           <div className="acoes" style={{ justifyContent: 'flex-start' }}>
@@ -85,7 +85,7 @@ export function Categorias({ dados, recarregar }: { dados: Dados; recarregar: ()
             ))}
           </div>
         </div>
-        {tipo === 'DESPESA' && <label className="check" style={{ gridColumn: '1 / -1' }}><input type="checkbox" {...f.marcar('essencial')} /> Essencial (moradia, mercado, saúde…). A análise não sugere cortar essenciais.</label>}
+        {tipo === 'DESPESA' && <Interruptor largo {...f.marcar('essencial')} rotulo="Essencial" descricao="Moradia, mercado, saúde… A análise não sugere cortar essenciais." />}
       </Modal>
     </>
   )

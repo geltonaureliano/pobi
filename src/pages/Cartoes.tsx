@@ -7,7 +7,7 @@ import { emAbertoNoCartao, faturaDaCompra, faturasDoPeriodo, marcaDePagamento, t
 import type { Cartao } from '../domain/cartao/model'
 import { criarLancamento } from '../domain/lancamento/repository'
 import { Modal, BotaoExcluir } from '../ui/components/Modal'
-import { Campo, Opcoes, Vazio } from '../ui/components/Campos'
+import { Campo, Vazio, Texto, Data, Moeda, Selecao } from '../ui/components/Campos'
 import { Barra } from '../ui/components/Barra'
 import { useForm } from '../ui/useForm'
 import type { Dados } from '../ui/useDados'
@@ -93,17 +93,17 @@ export function Cartoes({ dados, recarregar }: { dados: Dados; recarregar: () =>
       </div>
 
       <Modal titulo={cartaoEd === 'novo' ? 'Novo cartão' : 'Editar cartão'} aberto={cartaoEd != null} fechar={() => setCartaoEd(null)} rodape={<button className="botao" onClick={salvarCartao}>Salvar</button>}>
-        <Campo rotulo="Nome" erro={fk.erros.nome} largo><input autoFocus {...fk.campo('nome')} /></Campo>
-        <Campo rotulo="Limite (R$)" erro={fk.erros.limite}><input {...fk.campo('limite')} /></Campo>
-        <Campo rotulo="Conta que paga a fatura"><select {...fk.campo('conta_pagamento_id')}><Opcoes itens={ativas} /></select></Campo>
-        <Campo rotulo="Dia do fechamento" erro={fk.erros.dia_fechamento}><input {...fk.campo('dia_fechamento')} /></Campo>
-        <Campo rotulo="Dia do vencimento" erro={fk.erros.dia_vencimento}><input {...fk.campo('dia_vencimento')} /></Campo>
+        <Campo rotulo="Nome" erro={fk.erros.nome} largo><Texto autoFocus {...fk.campo('nome')} /></Campo>
+        <Campo rotulo="Limite" erro={fk.erros.limite}><Moeda {...fk.campo('limite')} /></Campo>
+        <Campo rotulo="Conta que paga a fatura"><Selecao {...fk.campo('conta_pagamento_id')} itens={ativas} /></Campo>
+        <Campo rotulo="Dia do fechamento" erro={fk.erros.dia_fechamento}><Texto numerico maxLength={2} {...fk.campo('dia_fechamento')} /></Campo>
+        <Campo rotulo="Dia do vencimento" erro={fk.erros.dia_vencimento}><Texto numerico maxLength={2} {...fk.campo('dia_vencimento')} /></Campo>
       </Modal>
 
       <Modal titulo={pagando ? `Pagar fatura ${pagando.cartao.nome} · ${rotuloCompetencia(pagando.fatura.fatura)}` : ''} aberto={pagando != null} fechar={() => setPagando(null)} rodape={<button className="botao" onClick={pagar}>Registrar pagamento</button>}>
-        <Campo rotulo="Conta"><select {...fp.campo('conta_id')}><Opcoes itens={ativas} /></select></Campo>
-        <Campo rotulo="Data"><input type="date" {...fp.campo('data')} /></Campo>
-        <Campo rotulo="Valor (R$)" erro={fp.erros.valor}><input {...fp.campo('valor')} /></Campo>
+        <Campo rotulo="Conta"><Selecao {...fp.campo('conta_id')} itens={ativas} /></Campo>
+        <Campo rotulo="Data"><Data {...fp.campo('data')} /></Campo>
+        <Campo rotulo="Valor" erro={fp.erros.valor}><Moeda {...fp.campo('valor')} /></Campo>
         <p className="sutil" style={{ gridColumn: '1 / -1', margin: 0 }}>O pagamento sai do saldo da conta, mas não conta de novo nas despesas do mês: as compras do cartão já foram contadas quando aconteceram.</p>
       </Modal>
     </>

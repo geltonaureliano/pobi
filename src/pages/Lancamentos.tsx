@@ -7,7 +7,7 @@ import { lerCSV } from '../domain/lancamento/importacao'
 import { totaisDaCompetencia } from '../domain/lancamento/rules'
 import type { LancamentoDetalhado } from '../domain/lancamento/model'
 import { Modal, BotaoExcluir } from '../ui/components/Modal'
-import { Campo, Opcoes, Vazio } from '../ui/components/Campos'
+import { Campo, Vazio, Texto, Busca, Data, Moeda, Selecao, MultiSelecao, Segmentos, Interruptor } from '../ui/components/Campos'
 import { useForm } from '../ui/useForm'
 import type { Dados } from '../ui/useDados'
 
@@ -24,7 +24,7 @@ export function Lancamentos({ dados, recarregar }: { dados: Dados; recarregar: (
   const [c, setC] = useState(competenciaDe(hoje()))
   const [busca, setBusca] = useState('')
   const [fTipo, setFTipo] = useState('')
-  const [fCat, setFCat] = useState('')
+  const [fCat, setFCat] = useState<string[]>([])
   const [fOrigem, setFOrigem] = useState('')
   const [editando, setEditando] = useState<number | 'novo' | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -37,7 +37,7 @@ export function Lancamentos({ dados, recarregar }: { dados: Dados; recarregar: (
       l.data.startsWith(c) &&
       (!q || l.descricao.toLowerCase().includes(q) || (l.categoria_nome ?? '').toLowerCase().includes(q)) &&
       (!fTipo || (fTipo === 'PENDENTE' ? l.status === 'PENDENTE' : l.tipo === fTipo)) &&
-      (!fCat || String(l.categoria_id) === fCat) &&
+      (!fCat.length || fCat.includes(String(l.categoria_id))) &&
       (!fOrigem || (fOrigem.startsWith('k') ? `k${l.cartao_id}` === fOrigem : `c${l.conta_id}` === fOrigem && !l.cartao_id)))
   }, [dados, c, busca, fTipo, fCat, fOrigem])
   const t = totaisDaCompetencia(dados.lancamentos, c)
@@ -104,16 +104,15 @@ export function Lancamentos({ dados, recarregar }: { dados: Dados; recarregar: (
         </div>
         {aviso && <div className="aviso">{aviso}</div>}
         <div className="filtros">
-          <input className="busca" placeholder="Buscar descrição ou categoria" value={busca} onChange={(e) => setBusca(e.target.value)} />
-          <select value={fTipo} onChange={(e) => setFTipo(e.target.value)}>
-            <option value="">Todos os tipos</option><option value="DESPESA">Despesas</option><option value="RECEITA">Receitas</option><option value="TRANSFERENCIA">Transferências</option><option value="PENDENTE">Só pendentes</option>
-          </select>
-          <select value={fCat} onChange={(e) => setFCat(e.target.value)}><Opcoes itens={dados.categorias} vazio="Todas as categorias" /></select>
-          <select value={fOrigem} onChange={(e) => setFOrigem(e.target.value)}>
-            <option value="">Contas e cartões</option>
-            {dados.contas.map((x) => <option key={`c${x.id}`} value={`c${x.id}`}>{x.nome}</option>)}
-            {dados.cartoes.map((x) => <option key={`k${x.id}`} value={`k${x.id}`}>{x.nome} (cartão)</option>)}
-          </select>
+          <Busca value={busca} onChange={setBusca} placeholder="Buscar descrição ou categoria" />
+          <Selecao value={fTipo} onChange={setFTipo} vazio="Todos os tipos" itens={[
+            { id: 'DESPESA', nome: 'Despesas' }, { id: 'RECEITA', nome: 'Receitas' }, { id: 'TRANSFERENCIA', nome: 'Transferências' }, { id: 'PENDENTE', nome: 'Só pendentes' },
+          ]} />
+          <MultiSelecao valores={fCat} onChange={setFCat} itens={dados.categorias} placeholder="Todas as categorias" />
+          <Selecao value={fOrigem} onChange={setFOrigem} vazio="Contas e cartões" itens={[
+            ...dados.contas.map((x) => ({ id: `c${x.id}`, nome: x.nome })),
+            ...dados.cartoes.map((x) => ({ id: `k${x.id}`, nome: x.nome, dica: 'cartão' })),
+          ]} />
         </div>
         {lista.length ? (
           <table className="tabela">
@@ -142,7 +141,7 @@ export function Lancamentos({ dados, recarregar }: { dados: Dados; recarregar: (
               ))}
             </tbody>
           </table>
-        ) : <Vazio>Nenhum lançamento {busca || fTipo || fCat || fOrigem ? 'com esses filtros' : 'neste mês'}.</Vazio>}
+        ) : <Vazio>Nenhum lançamento {busca || fTipo || fCat.length || fOrigem ? 'com esses filtros' : 'neste mês'}.</Vazio>}
       </div>
 
       <Modal
@@ -154,26 +153,24 @@ export function Lancamentos({ dados, recarregar }: { dados: Dados; recarregar: (
           <button className="botao" onClick={() => salvar()}>Salvar</button>
         </>}
       >
-        <Campo rotulo="Tipo">
-          <select {...form.campo('tipo')}>
-            <option value="DESPESA">Despesa</option><option value="RECEITA">Receita</option><option value="TRANSFERENCIA">Transferência</option>
-          </select>
+        <Campo rotulo="Tipo" largo>
+          <Segmentos {...form.campo('tipo')} itens={[{ id: 'DESPESA', nome: 'Despesa' }, { id: 'RECEITA', nome: 'Receita' }, { id: 'TRANSFERENCIA', nome: 'Transferência' }]} />
         </Campo>
-        <Campo rotulo="Data" erro={form.erros.data}><input type="date" {...form.campo('data')} /></Campo>
-        <Campo rotulo="Descrição" erro={form.erros.descricao} largo><input autoFocus {...form.campo('descricao')} /></Campo>
-        <Campo rotulo="Valor (R$)" erro={form.erros.valor}><input placeholder="0,00" {...form.campo('valor')} /></Campo>
+        <Campo rotulo="Descrição" erro={form.erros.descricao} largo><Texto autoFocus {...form.campo('descricao')} /></Campo>
+        <Campo rotulo="Valor" erro={form.erros.valor}><Moeda {...form.campo('valor')} /></Campo>
+        <Campo rotulo="Data" erro={form.erros.data}><Data {...form.campo('data')} /></Campo>
         {f.tipo !== 'TRANSFERENCIA' && (
-          <Campo rotulo="Categoria"><select {...form.campo('categoria_id')}><Opcoes itens={cats} /></select></Campo>
+          <Campo rotulo="Categoria"><Selecao {...form.campo('categoria_id')} itens={cats} /></Campo>
         )}
         <Campo rotulo={f.tipo === 'TRANSFERENCIA' ? 'Conta de origem' : 'Conta'} erro={form.erros.conta_id}>
-          <select {...form.campo('conta_id')}><Opcoes itens={contasAtivas} /></select>
+          <Selecao {...form.campo('conta_id')} itens={contasAtivas} />
         </Campo>
         {f.tipo === 'TRANSFERENCIA' ? (
-          <Campo rotulo="Conta de destino" erro={form.erros.conta_destino_id}><select {...form.campo('conta_destino_id')}><Opcoes itens={contasAtivas} /></select></Campo>
+          <Campo rotulo="Conta de destino" erro={form.erros.conta_destino_id}><Selecao {...form.campo('conta_destino_id')} itens={contasAtivas} /></Campo>
         ) : f.tipo === 'DESPESA' ? (
-          <Campo rotulo="Cartão (no lugar da conta)" erro={form.erros.cartao_id}><select {...form.campo('cartao_id')}><Opcoes itens={cartoesAtivos} /></select></Campo>
+          <Campo rotulo="Cartão (no lugar da conta)" erro={form.erros.cartao_id}><Selecao {...form.campo('cartao_id')} itens={cartoesAtivos} /></Campo>
         ) : <div />}
-        <label className="check" style={{ gridColumn: '1 / -1' }}><input type="checkbox" {...form.marcar('pendente')} /> Ainda não foi pago (fica pendente e não entra nos totais)</label>
+        <Interruptor largo {...form.marcar('pendente')} rotulo="Ainda não foi pago" descricao="Fica pendente e não entra nos totais até você marcar como pago." />
       </Modal>
     </>
   )

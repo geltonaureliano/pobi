@@ -6,11 +6,11 @@ export function useForm<T extends object>(inicial: T) {
   const [erros, setErros] = useState<Partial<Record<keyof T, string>>>({})
   const campo = (k: keyof T) => ({
     value: String(valores[k] ?? ''),
-    onChange: (e: { target: { value: string } }) => setValores((v) => ({ ...v, [k]: e.target.value })),
+    onChange: (valor: string) => setValores((v) => ({ ...v, [k]: valor })),
   })
   const marcar = (k: keyof T) => ({
     checked: Boolean(valores[k]),
-    onChange: (e: { target: { checked: boolean } }) => setValores((v) => ({ ...v, [k]: e.target.checked })),
+    onChange: (marcado: boolean) => setValores((v) => ({ ...v, [k]: marcado })),
   })
   const reiniciar = (novo: T) => { setValores(novo); setErros({}) }
   return { valores, setValores, erros, setErros, campo, marcar, reiniciar }

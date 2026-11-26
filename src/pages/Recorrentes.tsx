@@ -11,7 +11,7 @@ import type { CustoFixo } from '../domain/custo-fixo/model'
 import { criarLancamento, importarLancamentos } from '../domain/lancamento/repository'
 
 import { Modal, BotaoExcluir } from '../ui/components/Modal'
-import { Campo, Opcoes, Vazio } from '../ui/components/Campos'
+import { Campo, Vazio, Texto, Data, Moeda, Selecao } from '../ui/components/Campos'
 import { useForm } from '../ui/useForm'
 import type { Dados } from '../ui/useDados'
 
@@ -47,15 +47,15 @@ function useRecorrente(tipo: 'receita' | 'custo', dados: Dados, recarregar: () =
   const cats = dados.categorias.filter((k) => k.tipo === (tipo === 'receita' ? 'RECEITA' : 'DESPESA'))
   const modal = (
     <Modal titulo={`${editando === 'novo' ? 'Nova' : 'Editar'} ${tipo === 'receita' ? 'receita' : 'custo fixo'}`} aberto={editando != null} fechar={() => setEditando(null)} rodape={<button className="botao" onClick={salvar}>Salvar</button>}>
-      <Campo rotulo="Nome" erro={form.erros.nome} largo><input autoFocus placeholder={tipo === 'receita' ? 'Salário, freela fixo…' : 'Aluguel, internet, academia…'} {...form.campo('nome')} /></Campo>
-      <Campo rotulo="Valor mensal (R$)" erro={form.erros.valor}><input {...form.campo('valor')} /></Campo>
-      <Campo rotulo={tipo === 'receita' ? 'Dia do recebimento' : 'Dia do vencimento'} erro={form.erros.dia}><input placeholder="opcional" {...form.campo('dia')} /></Campo>
-      <Campo rotulo="Início" erro={form.erros.inicio}><input type="date" {...form.campo('inicio')} /></Campo>
-      <Campo rotulo="Fim (vazio = sem fim)" erro={form.erros.fim}><input type="date" {...form.campo('fim')} /></Campo>
-      <Campo rotulo="Categoria"><select {...form.campo('categoria_id')}><Opcoes itens={cats} /></select></Campo>
-      <Campo rotulo="Conta"><select {...form.campo('conta_id')}><Opcoes itens={dados.contas.filter((x) => !x.arquivada)} /></select></Campo>
-      {tipo === 'custo' && <Campo rotulo="Ou cartão" erro={form.erros.cartao_id}><select {...form.campo('cartao_id')}><Opcoes itens={dados.cartoes.filter((x) => !x.arquivado)} /></select></Campo>}
-      <Campo rotulo="Observação" largo><input {...form.campo('observacao')} /></Campo>
+      <Campo rotulo="Nome" erro={form.erros.nome} largo><Texto autoFocus placeholder={tipo === 'receita' ? 'Salário, freela fixo…' : 'Aluguel, internet, academia…'} {...form.campo('nome')} /></Campo>
+      <Campo rotulo="Valor mensal" erro={form.erros.valor}><Moeda {...form.campo('valor')} /></Campo>
+      <Campo rotulo={tipo === 'receita' ? 'Dia do recebimento' : 'Dia do vencimento'} erro={form.erros.dia}><Texto placeholder="opcional" numerico maxLength={2} {...form.campo('dia')} /></Campo>
+      <Campo rotulo="Início" erro={form.erros.inicio}><Data {...form.campo('inicio')} /></Campo>
+      <Campo rotulo="Fim (vazio = sem fim)" erro={form.erros.fim}><Data {...form.campo('fim')} /></Campo>
+      <Campo rotulo="Categoria"><Selecao {...form.campo('categoria_id')} itens={cats} /></Campo>
+      <Campo rotulo="Conta"><Selecao {...form.campo('conta_id')} itens={dados.contas.filter((x) => !x.arquivada)} /></Campo>
+      {tipo === 'custo' && <Campo rotulo="Ou cartão" erro={form.erros.cartao_id}><Selecao {...form.campo('cartao_id')} itens={dados.cartoes.filter((x) => !x.arquivado)} /></Campo>}
+      <Campo rotulo="Observação" largo><Texto {...form.campo('observacao')} /></Campo>
     </Modal>
   )
   return { abrir, modal }

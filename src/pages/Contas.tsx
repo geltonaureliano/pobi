@@ -5,7 +5,7 @@ import { arquivarConta, atualizarConta, criarConta, definirPrincipal, excluirCon
 import type { ContaComSaldo, TipoConta } from '../domain/conta/model'
 import { saldoTotal } from '../domain/conta/rules'
 import { Modal, BotaoExcluir } from '../ui/components/Modal'
-import { Campo, Opcoes, Vazio } from '../ui/components/Campos'
+import { Campo, Vazio, Texto, Moeda, Selecao } from '../ui/components/Campos'
 import { useForm } from '../ui/useForm'
 import type { Dados } from '../ui/useDados'
 
@@ -65,9 +65,9 @@ export function Contas({ dados, recarregar }: { dados: Dados; recarregar: () => 
       </div>
 
       <Modal titulo={contaEd === 'nova' ? 'Nova conta' : 'Editar conta'} aberto={contaEd != null} fechar={() => setContaEd(null)} rodape={<button className="botao" onClick={salvarConta}>Salvar</button>}>
-        <Campo rotulo="Nome" erro={fc.erros.nome} largo><input autoFocus {...fc.campo('nome')} /></Campo>
-        <Campo rotulo="Tipo"><select {...fc.campo('tipo')}><Opcoes itens={TIPOS} vazio={null} /></select></Campo>
-        <Campo rotulo="Saldo inicial (R$)" erro={fc.erros.saldo_inicial}><input placeholder="0,00" {...fc.campo('saldo_inicial')} /></Campo>
+        <Campo rotulo="Nome" erro={fc.erros.nome} largo><Texto autoFocus {...fc.campo('nome')} /></Campo>
+        <Campo rotulo="Tipo"><Selecao {...fc.campo('tipo')} itens={TIPOS} vazio={null} /></Campo>
+        <Campo rotulo="Saldo inicial" erro={fc.erros.saldo_inicial}><Moeda {...fc.campo('saldo_inicial')} negativo /></Campo>
         <p className="sutil" style={{ gridColumn: '1 / -1', margin: 0 }}>Saldo inicial é o valor na conta antes do primeiro lançamento registrado aqui. Poupança e investimento contam como reserva de emergência no relatório.</p>
       </Modal>
 

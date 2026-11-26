@@ -6,7 +6,7 @@ import { parcelasAtrasadas, progressoDaDivida, saldoDevedor } from '../domain/di
 import type { Divida, Parcela, StatusDivida } from '../domain/divida/model'
 import { Barra } from '../ui/components/Barra'
 import { Modal, BotaoExcluir } from '../ui/components/Modal'
-import { Campo, Opcoes, Vazio } from '../ui/components/Campos'
+import { Campo, Vazio, Texto, Data, Moeda, Selecao } from '../ui/components/Campos'
 import { useForm } from '../ui/useForm'
 import type { Dados } from '../ui/useDados'
 
@@ -120,24 +120,24 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
       })}
 
       <Modal titulo={editando === 'nova' ? 'Nova dívida' : 'Editar dívida'} aberto={editando != null} fechar={() => setEditando(null)} rodape={<button className="botao" onClick={salvar}>Salvar</button>}>
-        <Campo rotulo="Nome" erro={fd.erros.nome}><input autoFocus placeholder="Financiamento, empréstimo…" {...fd.campo('nome')} /></Campo>
-        <Campo rotulo="Credor"><input {...fd.campo('credor')} /></Campo>
+        <Campo rotulo="Nome" erro={fd.erros.nome}><Texto autoFocus placeholder="Financiamento, empréstimo…" {...fd.campo('nome')} /></Campo>
+        <Campo rotulo="Credor"><Texto {...fd.campo('credor')} /></Campo>
         {editando === 'nova' ? <>
-          <Campo rotulo="Valor total (R$)" erro={fd.erros.total}><input {...fd.campo('total')} /></Campo>
-          <Campo rotulo="Número de parcelas" erro={fd.erros.parcelas}><input {...fd.campo('parcelas')} /></Campo>
-          <Campo rotulo="1º vencimento" erro={fd.erros.primeiro}><input type="date" {...fd.campo('primeiro')} /></Campo>
+          <Campo rotulo="Valor total" erro={fd.erros.total}><Moeda {...fd.campo('total')} /></Campo>
+          <Campo rotulo="Número de parcelas" erro={fd.erros.parcelas}><Texto numerico maxLength={3} {...fd.campo('parcelas')} /></Campo>
+          <Campo rotulo="1º vencimento" erro={fd.erros.primeiro}><Data {...fd.campo('primeiro')} /></Campo>
         </> : (
-          <Campo rotulo="Situação"><select {...fd.campo('status')}><option value="ATIVA">Ativa</option><option value="RENEGOCIADA">Renegociada</option><option value="QUITADA">Quitada</option></select></Campo>
+          <Campo rotulo="Situação"><Selecao {...fd.campo('status')} vazio={null} itens={[{ id: 'ATIVA', nome: 'Ativa' }, { id: 'RENEGOCIADA', nome: 'Renegociada' }, { id: 'QUITADA', nome: 'Quitada' }]} /></Campo>
         )}
-        <Campo rotulo="Juros ao mês (%, informativo)" erro={fd.erros.taxa}><input placeholder="opcional" {...fd.campo('taxa')} /></Campo>
-        {editando === 'nova' && <Campo rotulo="Categoria"><select {...fd.campo('categoria_id')}><Opcoes itens={dados.categorias.filter((k) => k.tipo === 'DESPESA')} /></select></Campo>}
+        <Campo rotulo="Juros ao mês (%, informativo)" erro={fd.erros.taxa}><Texto placeholder="opcional" inputMode="decimal" sufixo="% a.m." {...fd.campo('taxa')} /></Campo>
+        {editando === 'nova' && <Campo rotulo="Categoria"><Selecao {...fd.campo('categoria_id')} itens={dados.categorias.filter((k) => k.tipo === 'DESPESA')} /></Campo>}
         <p className="sutil" style={{ gridColumn: '1 / -1', margin: 0 }}>{editando === 'nova' ? 'O total é dividido em parcelas mensais iguais; os centavos que sobram vão para a última. Dá para ajustar parcela por parcela depois.' : 'As parcelas já geradas não mudam aqui; ajuste cada uma na lista de parcelas.'}</p>
       </Modal>
 
       <Modal titulo={pagando ? `Pagar ${pagando.divida.nome} · parcela ${pagando.parcela.numero}` : ''} aberto={pagando != null} fechar={() => setPagando(null)} rodape={<button className="botao" onClick={pagar}>Registrar pagamento</button>}>
-        <Campo rotulo="Valor pago (R$)" erro={fp.erros.valor}><input {...fp.campo('valor')} /></Campo>
-        <Campo rotulo="Data"><input type="date" {...fp.campo('data')} /></Campo>
-        <Campo rotulo="Saiu da conta" largo><select {...fp.campo('conta_id')}><Opcoes itens={dados.contas.filter((x) => !x.arquivada)} vazio="Não lançar na conta" /></select></Campo>
+        <Campo rotulo="Valor pago" erro={fp.erros.valor}><Moeda {...fp.campo('valor')} /></Campo>
+        <Campo rotulo="Data"><Data {...fp.campo('data')} /></Campo>
+        <Campo rotulo="Saiu da conta" largo><Selecao {...fp.campo('conta_id')} itens={dados.contas.filter((x) => !x.arquivada)} vazio="Não lançar na conta" /></Campo>
       </Modal>
 
       <Modal titulo={ajustando ? `Ajustar parcela ${ajustando.numero}` : ''} aberto={ajustando != null} fechar={() => setAjustando(null)} largura={480} rodape={<button className="botao" onClick={async () => {
@@ -145,8 +145,8 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
         if (!ajustando || v == null || v <= 0 || !dataValida(fa.valores.vencimento)) return fa.setErros({ valor: 'Valor e data válidos.' })
         await atualizarParcela(ajustando.id, v, fa.valores.vencimento); setAjustando(null); recarregar()
       }}>Salvar</button>}>
-        <Campo rotulo="Valor (R$)" erro={fa.erros.valor}><input {...fa.campo('valor')} /></Campo>
-        <Campo rotulo="Vencimento"><input type="date" {...fa.campo('vencimento')} /></Campo>
+        <Campo rotulo="Valor" erro={fa.erros.valor}><Moeda {...fa.campo('valor')} /></Campo>
+        <Campo rotulo="Vencimento"><Data {...fa.campo('vencimento')} /></Campo>
       </Modal>
     </>
   )
