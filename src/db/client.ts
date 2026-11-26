@@ -32,17 +32,18 @@ async function abrirTauri(): Promise<Banco> {
 }
 
 async function abrirNavegador(): Promise<Banco> {
-  const [{ default: initSqlJs }, { default: wasmUrl }, { default: m1 }, { default: m2 }, { semearDemo }, { default: m3 }] = await Promise.all([
+  const [{ default: initSqlJs }, { default: wasmUrl }, { default: m1 }, { default: m2 }, { semearDemo }, { default: m3 }, { default: m4 }] = await Promise.all([
     import('sql.js'),
     import('sql.js/dist/sql-wasm.wasm?url'),
     import('../../src-tauri/migrations/001_init.sql?raw'),
     import('../../src-tauri/migrations/002_pagamento_fatura.sql?raw'),
     import('./demo'),
     import('../../src-tauri/migrations/003_detalhes.sql?raw'),
+    import('../../src-tauri/migrations/004_conversas_ia.sql?raw'),
   ])
   const SQL = await initSqlJs({ locateFile: () => wasmUrl })
   const db = new SQL.Database()
-  for (const m of [m1, m2, m3]) db.exec(m)
+  for (const m of [m1, m2, m3, m4]) db.exec(m)
   const adaptar = (sql: string) => sql.replace(/\$(\d+)/g, '?$1')
   const b: Banco = {
     async select<T>(sql: string, params: unknown[] = []) {

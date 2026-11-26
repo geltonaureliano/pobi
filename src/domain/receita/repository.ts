@@ -5,10 +5,11 @@ export async function listarReceitas(): Promise<Receita[]> {
   return (await banco()).select('SELECT * FROM receitas ORDER BY ativa DESC, nome')
 }
 export async function criarReceita(r: NovaReceita) {
-  await (await banco()).execute(
+  const res = await (await banco()).execute(
     `INSERT INTO receitas (nome, valor, dia_recebimento, inicio, fim, conta_id, categoria_id, observacao, tipo_valor, valor_min, valor_max, fonte, origem)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
     [r.nome, r.valor, r.dia_recebimento, r.inicio, r.fim, r.conta_id, r.categoria_id, r.observacao, r.tipo_valor, r.valor_min, r.valor_max, r.fonte, r.origem ?? 'MANUAL'])
+  return res.lastInsertId
 }
 export async function atualizarReceita(id: number, r: NovaReceita) {
   await (await banco()).execute(

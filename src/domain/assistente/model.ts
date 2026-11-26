@@ -31,3 +31,26 @@ export interface RespostaAssistente {
   rascunho: Record<string, unknown>
   pendencias: string[]
 }
+
+export interface MetaConversa {
+  resumo: string | null
+  confianca: Confianca | null
+  pendencias: string[]
+}
+
+/** Conversa com o assistente, salva a cada mensagem. Fica como rascunho até o cadastro ser confirmado. */
+export interface ConversaIA {
+  id: string
+  alvo: AlvoAssistente
+  titulo: string
+  status: 'RASCUNHO' | 'CONCLUIDA'
+  item_id: number | null
+  motor: string | null
+  mensagens: MensagemChat[]
+  /** Campos do formulário de revisão como estavam (texto). */
+  campos: Record<string, unknown>
+  meta: MetaConversa | null
+  anexos: AnexoLocal[]
+  criado_em: string
+  atualizado_em: string
+}

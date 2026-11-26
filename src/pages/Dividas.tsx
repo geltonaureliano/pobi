@@ -7,6 +7,9 @@ import { SISTEMAS, TIPOS_DIVIDA, type Divida, type Parcela } from '../domain/div
 import { camposDeDivida, camposDividaVazios, validarDivida, type CamposDivida } from '../domain/divida/form'
 import { EscolhaCadastro } from '../ui/components/EscolhaCadastro'
 import { Assistente } from './assistente/Assistente'
+import { BotaoConversas, HistoricoConversas } from './assistente/Historico'
+import type { ConversaIA } from '../domain/assistente/model'
+import { buscarConversa } from '../domain/assistente/repository'
 import { CamposDividaForm } from './assistente/formularios'
 import { Barra } from '../ui/components/Barra'
 import { Modal, BotaoExcluir } from '../ui/components/Modal'
@@ -25,7 +28,8 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
   const [ajustando, setAjustando] = useState<Parcela | null>(null)
   const fd = useForm<CamposDivida>(camposDividaVazios())
   const [escolhendo, setEscolhendo] = useState(false)
-  const [comIA, setComIA] = useState(false)
+  const [conversa, setConversa] = useState<ConversaIA | 'nova' | null>(null)
+  const [historico, setHistorico] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
   const fp = useForm({ conta_id: '', valor: '', data: hoje() })
   const fa = useForm({ valor: '', vencimento: '' })
@@ -59,13 +63,23 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
     setPagando(null); recarregar()
   }
 
-  if (comIA) {
-    return <Assistente alvo="divida" dados={dados} voltar={() => setComIA(false)} concluir={(msg) => { setComIA(false); setAviso(msg); recarregar() }} />
+  if (conversa) {
+    const c = conversa === 'nova' ? null : conversa
+    return <Assistente key={c?.id ?? 'nova'} alvo="divida" dados={dados} conversa={c} trocar={(x) => setConversa(x ?? 'nova')}
+      voltar={() => setConversa(null)} concluir={(msg) => { setConversa(null); setAviso(msg); recarregar() }} />
   }
 
   return (
     <>
-      <div className="topo"><h1>Dívidas</h1><button className="botao" onClick={() => setEscolhendo(true)}>Nova dívida</button></div>
+      <div className="topo">
+        <h1>Dívidas</h1>
+        <div className="acoes">
+          <BotaoConversas alvo="divida" onClick={() => setHistorico(true)} />
+          <button className="botao" onClick={() => setEscolhendo(true)}>Nova dívida</button>
+        </div>
+      </div>
+      <HistoricoConversas alvo="divida" aberto={historico} fechar={() => setHistorico(false)} nova={() => setConversa('nova')}
+        abrir={async (id) => { const c = await buscarConversa(id); if (c) setConversa(c) }} />
       {aviso && <div className="secao"><div className="aviso sucesso">{aviso}</div></div>}
       <div className="cards" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="card"><h3>Saldo devedor</h3><div className="valor"><Dinheiro valor={saldoDevedor(todasParcelas)} animar /></div></div>
@@ -130,7 +144,7 @@ export function Dividas({ dados, recarregar }: { dados: Dados; recarregar: () =>
       })}
 
       <EscolhaCadastro aberto={escolhendo} fechar={() => setEscolhendo(false)} titulo="Nova dívida" item="da dívida"
-        manual={() => { setEscolhendo(false); abrir() }} ia={() => { setEscolhendo(false); setComIA(true) }} />
+        manual={() => { setEscolhendo(false); abrir() }} ia={() => { setEscolhendo(false); setConversa('nova') }} />
 
       <Modal titulo={editando === 'nova' ? 'Nova dívida' : 'Editar dívida'} aberto={editando != null} fechar={() => setEditando(null)} largura={680} rodape={<button className="botao" onClick={salvar}>Salvar</button>}>
         <CamposDividaForm f={fd} nova={editando === 'nova'} categorias={dados.categorias} />

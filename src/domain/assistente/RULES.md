@@ -8,3 +8,6 @@
 - Nada é gravado até o usuário clicar em **Confirmar e cadastrar**. A validação é a mesma do cadastro manual.
 - Dívida: com valor de parcela, o total é parcela × quantidade. "Parcelas pagas" marca as primeiras parcelas como pagas na data de vencimento, sem criar lançamentos (o dinheiro saiu antes do app).
 - No navegador (`npm run dev`) não há CLI: uma simulação por heurística preenche o rascunho para testar a interface, e a resposta avisa que é demonstração.
+- **Conversas salvas** (`conversas_ia`): cada conversa é gravada sozinha a cada mensagem e, com uma pausa curta, a cada correção nos campos. Enquanto não é confirmada fica como **rascunho**; ao confirmar vira **concluída** e guarda o id do item criado. Anexos até 30 MB por conversa ficam guardados junto, para a IA reler o arquivo quando a conversa é retomada.
+- A gaveta **Conversas** (em Dívidas, Receitas e dentro do assistente) lista rascunhos e concluídas: continuar, ver o histórico ou excluir. Conversa concluída abre só para consulta.
+- Arrastar arquivo: só a caixa de texto aceita; arrastar pela janela apenas destaca a caixa como convite.

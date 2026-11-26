@@ -182,3 +182,25 @@ export function rascunhoDosCampos(f: object): Record<string, unknown> {
 
 export const tamanhoLegivel = (bytes: number) =>
   bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`
+
+/** Título da conversa: o nome do item, o resumo da IA ou o começo da primeira mensagem. */
+export function tituloDaConversa(nome: string | undefined, resumo: string | null | undefined, mensagens: MensagemChat[]): string {
+  if (nome?.trim()) return nome.trim()
+  if (resumo?.trim()) return resumo.trim().slice(0, 80)
+  const primeira = mensagens.find((m) => m.autor === 'voce')
+  if (primeira?.texto) return primeira.texto.length > 60 ? `${primeira.texto.slice(0, 57)}…` : primeira.texto
+  if (primeira?.anexos.length) return primeira.anexos[0].nome
+  return 'Nova conversa'
+}
+
+/** "agora", "há 5 min", "há 3 h", "ontem", "12/11". `quando` vem do SQLite em UTC (AAAA-MM-DD HH:MM:SS). */
+export function quandoLegivel(quando: string, agora = new Date()): string {
+  const d = new Date(quando.includes('T') ? quando : `${quando.replace(' ', 'T')}Z`)
+  const min = Math.round((agora.getTime() - d.getTime()) / 60000)
+  if (min < 1) return 'agora'
+  if (min < 60) return `há ${min} min`
+  if (min < 24 * 60 && d.getDate() === agora.getDate()) return `há ${Math.round(min / 60)} h`
+  const ontem = new Date(agora); ontem.setDate(agora.getDate() - 1)
+  if (d.toDateString() === ontem.toDateString()) return 'ontem'
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}

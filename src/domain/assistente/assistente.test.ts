@@ -84,3 +84,20 @@ it('prompt leva rascunho, conversa e arquivos', () => {
   expect(p).toContain('"nome":"Carro"')
   expect(p).toContain('USUÁRIO: meu financiamento')
 })
+
+import { quandoLegivel, tituloDaConversa } from './rules'
+
+describe('conversas salvas', () => {
+  it('título prefere o nome, depois o resumo, depois a primeira mensagem', () => {
+    const msgs = [{ id: '1', autor: 'voce' as const, texto: 'meu empréstimo do banco que peguei ano passado para reformar a casa', anexos: [] }]
+    expect(tituloDaConversa('Carro', 'x', msgs)).toBe('Carro')
+    expect(tituloDaConversa('', 'Empréstimo de 10 mil', msgs)).toBe('Empréstimo de 10 mil')
+    expect(tituloDaConversa('', null, msgs)).toBe('meu empréstimo do banco que peguei ano passado para refor…')
+    expect(tituloDaConversa('', null, [])).toBe('Nova conversa')
+  })
+  it('quando legível', () => {
+    const agora = new Date('2026-11-26T13:00:00Z')
+    expect(quandoLegivel('2026-11-26 12:59:40', agora)).toBe('agora')
+    expect(quandoLegivel('2026-11-26 12:30:00', agora)).toBe('há 30 min')
+  })
+})

@@ -12,6 +12,9 @@ import { criarLancamento, importarLancamentos } from '../domain/lancamento/repos
 import { Modal, BotaoExcluir } from '../ui/components/Modal'
 import { EscolhaCadastro } from '../ui/components/EscolhaCadastro'
 import { Assistente } from './assistente/Assistente'
+import { BotaoConversas, HistoricoConversas } from './assistente/Historico'
+import type { ConversaIA } from '../domain/assistente/model'
+import { buscarConversa } from '../domain/assistente/repository'
 import { CamposReceitaForm } from './assistente/formularios'
 import { Campo, Vazio, Texto, Data, Moeda, Selecao } from '../ui/components/Campos'
 import { useForm } from '../ui/useForm'
@@ -73,7 +76,8 @@ export function Receitas({ dados, recarregar }: { dados: Dados; recarregar: () =
   const c = competenciaDe(hoje())
   const { abrir, modal } = useRecorrente('receita', dados, recarregar)
   const [escolhendo, setEscolhendo] = useState(false)
-  const [comIA, setComIA] = useState(false)
+  const [conversa, setConversa] = useState<ConversaIA | 'nova' | null>(null)
+  const [historico, setHistorico] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
   const prevista = totalPrevisto(dados.receitas, c)
   const recebido = dados.lancamentos.filter((l) => l.tipo === 'RECEITA' && l.status === 'PAGO' && competenciaDe(l.data) === c).reduce((s, l) => s + l.valor, 0)
@@ -88,16 +92,26 @@ export function Receitas({ dados, recarregar }: { dados: Dados; recarregar: () =
     recarregar()
   }
 
-  if (comIA) {
-    return <Assistente alvo="receita" dados={dados} voltar={() => setComIA(false)} concluir={(msg) => { setComIA(false); setAviso(msg); recarregar() }} />
+  if (conversa) {
+    const c = conversa === 'nova' ? null : conversa
+    return <Assistente key={c?.id ?? 'nova'} alvo="receita" dados={dados} conversa={c} trocar={(x) => setConversa(x ?? 'nova')}
+      voltar={() => setConversa(null)} concluir={(msg) => { setConversa(null); setAviso(msg); recarregar() }} />
   }
 
   return (
     <>
-      <div className="topo"><h1>Receitas</h1><button className="botao" onClick={() => setEscolhendo(true)}>Nova receita</button></div>
+      <div className="topo">
+        <h1>Receitas</h1>
+        <div className="acoes">
+          <BotaoConversas alvo="receita" onClick={() => setHistorico(true)} />
+          <button className="botao" onClick={() => setEscolhendo(true)}>Nova receita</button>
+        </div>
+      </div>
+      <HistoricoConversas alvo="receita" aberto={historico} fechar={() => setHistorico(false)} nova={() => setConversa('nova')}
+        abrir={async (id) => { const c = await buscarConversa(id); if (c) setConversa(c) }} />
       {aviso && <div className="secao"><div className="aviso sucesso">{aviso}</div></div>}
       <EscolhaCadastro aberto={escolhendo} fechar={() => setEscolhendo(false)} titulo="Nova receita" item="da receita"
-        manual={() => { setEscolhendo(false); abrir() }} ia={() => { setEscolhendo(false); setComIA(true) }} />
+        manual={() => { setEscolhendo(false); abrir() }} ia={() => { setEscolhendo(false); setConversa('nova') }} />
       <div className="cards" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="card"><h3>Prevista em {rotuloCompetencia(c)}</h3><div className="valor"><Dinheiro valor={prevista} animar /></div></div>
         <div className="card"><h3>Recebido no mês</h3><div className="valor pos"><Dinheiro valor={recebido} animar tom="pos" /></div></div>

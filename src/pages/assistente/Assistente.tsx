@@ -3,9 +3,9 @@ import { hoje, competenciaDe } from '../../shared/data'
 import { paraCentavos } from '../../shared/dinheiro'
 import type { Motor } from '../../domain/analise/model'
 import { comMotorDisponivel, lerAjuste, motoresDisponiveis, NOME_MOTOR, salvarAjuste, type MotorDisponivel } from '../../domain/analise/repository'
-import type { AlvoAssistente, AnexoLocal, Confianca, MensagemChat } from '../../domain/assistente/model'
-import { aplicarNaDivida, aplicarNaReceita, interpretarAssistente, montarPromptAssistente, rascunhoDosCampos, tamanhoLegivel } from '../../domain/assistente/rules'
-import { executarAssistente, lerArquivo } from '../../domain/assistente/repository'
+import type { AlvoAssistente, AnexoLocal, ConversaIA, MensagemChat, MetaConversa } from '../../domain/assistente/model'
+import { aplicarNaDivida, aplicarNaReceita, interpretarAssistente, montarPromptAssistente, quandoLegivel, rascunhoDosCampos, tamanhoLegivel, tituloDaConversa } from '../../domain/assistente/rules'
+import { buscarConversa, executarAssistente, lerArquivo, salvarConversa } from '../../domain/assistente/repository'
 import { camposDividaVazios, totalDoFormulario, validarDivida, type CamposDivida } from '../../domain/divida/form'
 import { criarDivida } from '../../domain/divida/repository'
 import { criarReceita } from '../../domain/receita/repository'
@@ -16,6 +16,7 @@ import { Dinheiro } from '../../ui/components/Dinheiro'
 import { Simbolo } from '../../ui/components/Marca'
 import type { Dados } from '../../ui/useDados'
 import { CamposDividaForm, CamposReceitaForm } from './formularios'
+import { HistoricoConversas } from './Historico'
 
 const MAX_ARQUIVO = 20 * 1024 * 1024
 
@@ -58,25 +59,38 @@ function diferencas(a: object, b: object) {
   return Object.keys(y).filter((k) => x[k] !== y[k] && k !== 'modo')
 }
 
-export function Assistente({ alvo, dados, voltar, concluir }: {
+/**
+ * Página do assistente. Com `conversa`, retoma um rascunho salvo (ou mostra uma conversa já concluída).
+ * `trocar` abre outra conversa (id) ou uma nova (null); o pai remonta o componente.
+ */
+export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar }: {
   alvo: AlvoAssistente; dados: Dados; voltar: () => void; concluir: (aviso: string) => void
+  conversa?: ConversaIA | null; trocar: (c: ConversaIA | null) => void
 }) {
   const principal = String(dados.contas.find((x) => x.principal)?.id ?? '')
   const catDividas = dados.categorias.find((k) => k.nome === 'Dívidas')?.id
-  const fd = useForm<CamposDivida>({ ...camposDividaVazios(catDividas ? String(catDividas) : ''), primeiro: '' })
-  const fr = useForm<CamposRecorrente>(receitaVazia(principal))
+  const camposIniciais = useRef(conversa?.campos)
+  const fd = useForm<CamposDivida>({ ...camposDividaVazios(catDividas ? String(catDividas) : ''), primeiro: '', ...(alvo === 'divida' ? camposIniciais.current as Partial<CamposDivida> : {}) })
+  const fr = useForm<CamposRecorrente>({ ...receitaVazia(principal), ...(alvo === 'receita' ? camposIniciais.current as Partial<CamposRecorrente> : {}) })
+  const idConversa = useRef(conversa?.id ?? crypto.randomUUID())
+  const concluida = conversa?.status === 'CONCLUIDA'
+  const [historicoAberto, setHistoricoAberto] = useState(false)
+  const [salvoEm, setSalvoEm] = useState<string | null>(conversa ? conversa.atualizado_em : null)
+  const [versao, setVersao] = useState(0)
 
   const [motor, setMotor] = useState<Motor>('claude')
   const [motores, setMotores] = useState<MotorDisponivel[]>([])
   const arrastos = useRef(0)
-  const [mensagens, setMensagens] = useState<MensagemChat[]>([])
-  const [arquivos, setArquivos] = useState<AnexoLocal[]>([])
+  const [mensagens, setMensagens] = useState<MensagemChat[]>(conversa?.mensagens ?? [])
+  const [arquivos, setArquivos] = useState<AnexoLocal[]>(conversa?.anexos ?? [])
   const [pendentes, setPendentes] = useState<AnexoLocal[]>([])
   const [texto, setTexto] = useState('')
   const [rodando, setRodando] = useState(false)
   const [etapa, setEtapa] = useState(0)
   const [arrastando, setArrastando] = useState(false)
-  const [meta, setMeta] = useState<{ resumo: string | null; confianca: Confianca | null; pendencias: string[] } | null>(null)
+  const [meta, setMeta] = useState<MetaConversa | null>(conversa?.meta ?? null)
+  const [arrastandoJanela, setArrastandoJanela] = useState(false)
+  const arrastosJanela = useRef(0)
   const [destacar, setDestacar] = useState<string[]>([])
   const [salvando, setSalvando] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -84,17 +98,56 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
   const seletor = useRef<HTMLInputElement>(null)
   const caixa = useRef<HTMLTextAreaElement>(null)
 
+  const motorDaConversa = conversa?.motor
   useEffect(() => {
-    lerAjuste('motor').then((m) => m && setMotor(m as Motor)).catch(() => {})
+    if (motorDaConversa === 'claude' || motorDaConversa === 'codex') setMotor(motorDaConversa)
+    else lerAjuste('motor').then((m) => m && setMotor(m as Motor)).catch(() => {})
     motoresDisponiveis().then(setMotores).catch(() => {})
-  }, [])
-  // Arrastar arquivo do Finder: a área inteira do chat vira dropzone (contador evita piscar entre elementos filhos).
+  }, [motorDaConversa])
+  // Arrastar do Finder: só a caixa de texto aceita o arquivo. Enquanto arrasta pela janela, ela se destaca como convite.
   useEffect(() => {
-    const evitar = (e: globalThis.DragEvent) => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault() }
+    const comArquivo = (e: globalThis.DragEvent) => !!e.dataTransfer?.types.includes('Files')
+    const evitar = (e: globalThis.DragEvent) => { if (comArquivo(e)) e.preventDefault() }
+    const entra = (e: globalThis.DragEvent) => { if (comArquivo(e)) { arrastosJanela.current++; setArrastandoJanela(true) } }
+    const sai = (e: globalThis.DragEvent) => { if (comArquivo(e)) { arrastosJanela.current = Math.max(0, arrastosJanela.current - 1); if (!arrastosJanela.current) setArrastandoJanela(false) } }
+    const fim = () => { arrastosJanela.current = 0; setArrastandoJanela(false) }
     window.addEventListener('dragover', evitar)
-    window.addEventListener('drop', evitar)
-    return () => { window.removeEventListener('dragover', evitar); window.removeEventListener('drop', evitar) }
+    window.addEventListener('dragenter', entra)
+    window.addEventListener('dragleave', sai)
+    const solta = (e: globalThis.DragEvent) => { evitar(e); fim() }
+    window.addEventListener('drop', solta)
+    window.addEventListener('dragend', fim)
+    return () => {
+      window.removeEventListener('dragover', evitar); window.removeEventListener('dragenter', entra)
+      window.removeEventListener('dragleave', sai); window.removeEventListener('dragend', fim); window.removeEventListener('drop', solta)
+    }
   }, [])
+
+  // Salva a conversa sozinho: a cada mensagem e, com uma pausa, a cada correção nos campos.
+  const valoresAtuais = alvo === 'divida' ? fd.valores : fr.valores
+  const valoresIniciais = useRef(JSON.stringify(valoresAtuais))
+  const salvar = useRef<() => Promise<void>>(async () => {})
+  salvar.current = async () => {
+    const mexeu = mensagens.length > 0 || JSON.stringify(valoresAtuais) !== valoresIniciais.current
+    if (!mexeu || concluida) return
+    await salvarConversa({
+      id: idConversa.current, alvo, status: 'RASCUNHO', item_id: null, motor,
+      titulo: tituloDaConversa((valoresAtuais as { nome?: string }).nome, meta?.resumo, mensagens),
+      mensagens, campos: valoresAtuais as unknown as Record<string, unknown>, meta, anexos: arquivos,
+    })
+    setSalvoEm(new Date().toISOString()); setVersao((v) => v + 1)
+  }
+  useEffect(() => {
+    const t = setTimeout(() => { salvar.current().catch(() => {}) }, mensagens.length && mensagens[mensagens.length - 1].autor === 'ia' ? 0 : 700)
+    return () => clearTimeout(t)
+  }, [mensagens, meta, arquivos, valoresAtuais])
+  async function sairSalvando() { await salvar.current().catch(() => {}); voltar() }
+  async function abrirOutra(id: string | null) {
+    await salvar.current().catch(() => {})
+    trocar(id ? await buscarConversa(id) : null)
+  }
+  const [, relogio] = useState(0)
+  useEffect(() => { const t = setInterval(() => relogio((x) => x + 1), 30000); return () => clearInterval(t) }, [])
   useEffect(() => { lista.current?.scrollTo({ top: lista.current.scrollHeight, behavior: 'smooth' }) }, [mensagens, rodando])
   useEffect(() => {
     if (!rodando) return
@@ -163,7 +216,7 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); enviar() }
   }
   const temArquivo = (e: DragEvent) => e.dataTransfer.types.includes('Files')
-  function entrar(e: DragEvent) { if (!temArquivo(e)) return; e.preventDefault(); arrastos.current++; setArrastando(true) }
+  function entrar(e: DragEvent) { if (!temArquivo(e) || concluida) return; e.preventDefault(); arrastos.current++; setArrastando(true) }
   function sair(e: DragEvent) { if (!temArquivo(e)) return; arrastos.current = Math.max(0, arrastos.current - 1); if (!arrastos.current) setArrastando(false) }
   function soltar(e: DragEvent) {
     e.preventDefault(); arrastos.current = 0; setArrastando(false)
@@ -173,19 +226,28 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
 
   const rolarAteErro = () => requestAnimationFrame(() => document.querySelector('.revisao-form .com-erro')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
 
+  async function marcarConcluida(nome: string, item_id: number | null) {
+    await salvarConversa({
+      id: idConversa.current, alvo, status: 'CONCLUIDA', item_id, motor, titulo: nome,
+      mensagens, campos: valoresAtuais as unknown as Record<string, unknown>, meta, anexos: arquivos,
+    }).catch(() => {})
+  }
+
   async function confirmar() {
     setSalvando(true)
     try {
       if (alvo === 'divida') {
         const r = validarDivida(fd.valores, true)
         if (!r.ok) { fd.setErros(r.erros); rolarAteErro(); return }
-        await criarDivida({ ...r.nova, origem: 'IA' })
+        const id = await criarDivida({ ...r.nova, origem: 'IA' })
+        await marcarConcluida(r.nova.nome, id ?? null)
         concluir(`${r.nova.nome} cadastrada com ${r.nova.parcelas} parcelas.`)
       } else {
         const r = validarRecorrente(fr.valores, false)
         if (!r.ok) { fr.setErros(r.erros); rolarAteErro(); return }
         const v = r.valor
-        await criarReceita({ nome: v.nome, valor: v.valor, dia_recebimento: v.dia, inicio: v.inicio, fim: v.fim, conta_id: v.conta_id, categoria_id: v.categoria_id, observacao: v.observacao, tipo_valor: v.tipo_valor, valor_min: v.valor_min, valor_max: v.valor_max, fonte: v.fonte, origem: 'IA' })
+        const id = await criarReceita({ nome: v.nome, valor: v.valor, dia_recebimento: v.dia, inicio: v.inicio, fim: v.fim, conta_id: v.conta_id, categoria_id: v.categoria_id, observacao: v.observacao, tipo_valor: v.tipo_valor, valor_min: v.valor_min, valor_max: v.valor_max, fonte: v.fonte, origem: 'IA' })
+        await marcarConcluida(v.nome, id ?? null)
         concluir(`${v.nome} cadastrada.`)
       }
     } finally {
@@ -223,14 +285,20 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
   return (
     <div className="assistente">
       <header className="assistente-topo">
-        <button className="botao-voltar" onClick={voltar}>
+        <button className="botao-voltar" onClick={sairSalvando}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           {alvo === 'divida' ? 'Dívidas' : 'Receitas'}
         </button>
         <div className="assistente-titulo">
-          <h1>Nova {nomeItem} com IA</h1>
-          <span className="sutil">Conte, cole ou anexe. Você revisa tudo antes de salvar.</span>
+          <h1>{concluida ? conversa?.titulo : conversa || mensagens.length ? tituloDaConversa((valoresAtuais as { nome?: string }).nome, meta?.resumo, mensagens) : `Nova ${nomeItem} com IA`}</h1>
+          <span className="sutil salvo">
+            {concluida ? <>Cadastrada · conversa salva</> : salvoEm ? <><i className="ponto-salvo" />Rascunho salvo {quandoLegivel(salvoEm)}</> : 'Conte, cole ou anexe. Tudo é salvo como rascunho até você confirmar.'}
+          </span>
         </div>
+        <button className="botao secundario botao-conversas" onClick={() => setHistoricoAberto(true)} title="Conversas e rascunhos">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>
+          Conversas
+        </button>
         {emTauri() ? (
           <div className="motores" role="radiogroup" aria-label="Motor de IA">
             {(['claude', 'codex'] as Motor[]).map((m) => {
@@ -247,13 +315,7 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
       </header>
 
       <div className="assistente-corpo">
-        <section
-          className={`chat ${arrastando ? 'arrastando' : ''}`}
-          onDragEnter={entrar}
-          onDragOver={(e) => { if (temArquivo(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' } }}
-          onDragLeave={sair}
-          onDrop={soltar}
-        >
+        <section className="chat">
           <div className="chat-lista" ref={lista}>
             {!mensagens.length && (
               <div className="chat-vazio">
@@ -288,7 +350,20 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
             )}
           </div>
 
-          <div className={`composer ${arrastando ? 'soltando' : ''}`}>
+          {concluida ? (
+            <div className="composer-concluida">
+              <IconeVisto />
+              <span>Esta conversa já virou cadastro. O histórico fica aqui para consulta.</span>
+              <button className="botao secundario" onClick={() => abrirOutra(null)}>Nova conversa</button>
+            </div>
+          ) : (
+          <div
+            className={`composer ${arrastando ? 'soltando' : arrastandoJanela ? 'convidando' : ''}`}
+            onDragEnter={entrar}
+            onDragOver={(e) => { if (temArquivo(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' } }}
+            onDragLeave={sair}
+            onDrop={soltar}
+          >
             {aviso && <div className="composer-aviso">{aviso}</div>}
             {pendentes.length > 0 && (
               <div className="composer-anexos">
@@ -300,7 +375,7 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
                 ))}
               </div>
             )}
-            {arrastando && <div className="composer-soltar"><IconeArquivo nome="" />Solte os arquivos aqui</div>}
+            {(arrastando || arrastandoJanela) && <div className="composer-soltar"><IconeArquivo nome="" />{arrastando ? 'Solte para anexar' : 'Arraste até aqui para anexar'}</div>}
             <textarea
               ref={caixa} rows={1} value={texto} autoFocus disabled={rodando}
               placeholder={mensagens.length ? 'Responda, corrija algo ou tire uma dúvida…' : `Descreva a ${nomeItem} ou anexe arquivos…`}
@@ -319,7 +394,7 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
               </button>
             </div>
           </div>
-          {arrastando && <div className="chat-soltar"><div><IconeArquivo nome="" grande /><strong>Solte para anexar</strong><span>Qualquer tipo de arquivo</span></div></div>}
+          )}
         </section>
 
         <aside className="revisao">
@@ -351,11 +426,13 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
               : <CamposReceitaForm f={fr} categorias={dados.categorias} contas={contas} destacar={destacar} />}
           </div>
           <div className="revisao-rodape">
-            <button className="botao secundario" onClick={voltar}>Cancelar</button>
-            <button className="botao laranja" onClick={confirmar} disabled={salvando || rodando}>{salvando ? 'Salvando…' : `Confirmar e cadastrar`}</button>
+            <button className="botao secundario" onClick={sairSalvando}>{concluida ? 'Voltar' : 'Sair (fica salvo)'}</button>
+            {!concluida && <button className="botao laranja" onClick={confirmar} disabled={salvando || rodando}>{salvando ? 'Salvando…' : `Confirmar e cadastrar`}</button>}
           </div>
         </aside>
       </div>
+      <HistoricoConversas alvo={alvo} aberto={historicoAberto} fechar={() => setHistoricoAberto(false)} atual={idConversa.current} versao={versao}
+        abrir={(id) => abrirOutra(id)} nova={() => abrirOutra(null)} />
     </div>
   )
 }
