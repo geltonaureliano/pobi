@@ -20,6 +20,7 @@ APP="$ALVO/release/bundle/macos/Pobi.app"
 
 # Fecha o Pobi aberto antes de trocar o app.
 osascript -e 'tell application "Pobi" to quit' >/dev/null 2>&1 || true
+for _ in $(seq 1 20); do pgrep -x pobi >/dev/null || break; sleep 0.25; done
 pkill -x pobi >/dev/null 2>&1 || true
 
 rm -rf "$DESTINO"
@@ -34,5 +35,9 @@ if ! defaults read com.apple.dock persistent-apps 2>/dev/null | grep -q "Pobi.ap
   echo "Pobi fixado no Dock."
 fi
 
-open "$DESTINO"
+# O Launch Services às vezes ainda não registrou o app novo; tenta de novo.
+for tentativa in 1 2 3 4 5; do
+  open "$DESTINO" 2>/dev/null && break
+  sleep 1
+done
 echo "Pobi $(defaults read "$DESTINO/Contents/Info" CFBundleShortVersionString) instalado em $DESTINO"
