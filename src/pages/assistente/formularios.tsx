@@ -84,14 +84,16 @@ export function CamposReceitaForm({ f, categorias, contas, destacar = [], foco }
     <>
       <div className={d('nome')} style={{ gridColumn: '1 / -1' }}><Campo rotulo="Nome" erro={f.erros.nome}><Texto autoFocus={foco} placeholder="Salário, freela, aluguel recebido…" {...f.campo('nome')} /></Campo></div>
       <div className={d('fonte')}><Campo rotulo="Quem paga"><Texto placeholder="Empresa, cliente…" {...f.campo('fonte')} /></Campo></div>
-      <div className={d('dia')}><Campo rotulo="Dia que cai" erro={f.erros.dia} dica="Vazio = último dia do mês"><Texto placeholder="10" numerico maxLength={2} {...f.campo('dia')} /></Campo></div>
+      {v.regra === 'AVULSA'
+        ? <div className={d('inicio')}><Campo rotulo="Cai em" erro={f.erros.inicio} dica="Data do recebimento único"><Data {...f.campo('inicio')} /></Campo></div>
+        : <div className={d('dia')}><Campo rotulo="Dia que cai" erro={f.erros.dia} dica="Vazio = último dia do mês"><Texto placeholder="10" numerico maxLength={2} {...f.campo('dia')} /></Campo></div>}
       <div className={d('regra')} style={{ gridColumn: '1 / -1' }}>
         <Campo rotulo="Como o valor é definido">
           <Segmentos value={v.regra} onChange={(t) => f.setValores((x) => ({ ...x, regra: t as CamposReceita['regra'] }))}
-            itens={[{ id: 'FIXA', nome: 'Fixo todo mês' }, { id: 'VARIAVEL', nome: 'Variável (média)' }, { id: 'HORAS', nome: 'Por hora trabalhada' }]} />
+            itens={[{ id: 'FIXA', nome: 'Fixo todo mês' }, { id: 'VARIAVEL', nome: 'Variável (média)' }, { id: 'HORAS', nome: 'Por hora' }, { id: 'AVULSA', nome: 'Avulso (uma vez)' }]} />
         </Campo>
       </div>
-      {v.regra !== 'HORAS' && <div className={d('valor')}><Campo rotulo={v.regra === 'VARIAVEL' ? 'Média esperada por mês' : 'Valor mensal'} erro={f.erros.valor} dica={v.regra === 'VARIAVEL' ? 'Usada na previsão do mês' : undefined}><Moeda {...f.campo('valor')} /></Campo></div>}
+      {v.regra !== 'HORAS' && <div className={d('valor')}><Campo rotulo={v.regra === 'VARIAVEL' ? 'Média esperada por mês' : v.regra === 'AVULSA' ? 'Valor que vai cair' : 'Valor mensal'} erro={f.erros.valor} dica={v.regra === 'VARIAVEL' ? 'Usada na previsão do mês' : undefined}><Moeda {...f.campo('valor')} /></Campo></div>}
       {v.regra === 'VARIAVEL' && <>
         <div />
         <div className={d('valor_min')}><Campo rotulo="Mês fraco (mínimo)" erro={f.erros.valor_min}><Moeda {...f.campo('valor_min')} /></Campo></div>
@@ -116,8 +118,10 @@ export function CamposReceitaForm({ f, categorias, contas, destacar = [], foco }
           <small className="sutil">Dias úteis = segunda a sexta, sem feriados nacionais. Dá para ajustar os dias de um mês específico na tela de Receitas.</small>
         </div>
       </>}
-      <div className={d('inicio')}><Campo rotulo="Recebe a partir de" erro={f.erros.inicio}><Data {...f.campo('inicio')} /></Campo></div>
-      <div className={d('fim')}><Campo rotulo="Até" erro={f.erros.fim} dica="Vazio = sem data para acabar"><Data {...f.campo('fim')} /></Campo></div>
+      {v.regra !== 'AVULSA' && <>
+        <div className={d('inicio')}><Campo rotulo="Recebe a partir de" erro={f.erros.inicio}><Data {...f.campo('inicio')} /></Campo></div>
+        <div className={d('fim')}><Campo rotulo="Até" erro={f.erros.fim} dica="Vazio = sem data para acabar"><Data {...f.campo('fim')} /></Campo></div>
+      </>}
       <Campo rotulo="Categoria"><Selecao {...f.campo('categoria_id')} itens={categorias.filter((k) => k.tipo === 'RECEITA')} /></Campo>
       <Campo rotulo="Cai na conta"><Selecao {...f.campo('conta_id')} itens={contas} /></Campo>
       <div className={d('observacao')} style={{ gridColumn: '1 / -1' }}><Campo rotulo="Observações"><AreaTexto linhas={2} placeholder="Comissão, 13º, sazonalidade…" {...f.campo('observacao')} /></Campo></div>

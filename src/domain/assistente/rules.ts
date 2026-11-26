@@ -31,7 +31,8 @@ const CAMPOS: Record<AlvoAssistente, string> = {
   receita: `{
   "nome": string,                 // ex.: "Salário", "Freela Studio X"
   "fonte": string,                // quem paga
-  "regra": "FIXA" | "VARIAVEL" | "HORAS",
+  "regra": "FIXA" | "VARIAVEL" | "HORAS" | "AVULSA",
+  // AVULSA: recebimento único (13º, bônus, PLR, restituição, venda): informe "valor" e a data em "inicio".
   // FIXA: mesmo valor todo mês. VARIAVEL: muda de mês a mês, informe média e faixa.
   // HORAS: paga por hora trabalhada; o app calcula cada mês = dias úteis do mês trabalhado × horas/dia × valor da hora − desconto %.
   "valor": number,                // FIXA: o valor; VARIAVEL: a média; HORAS: um mês típico (referência), em reais
@@ -183,7 +184,7 @@ export function aplicarNaReceita(f: CamposReceita, r: Record<string, unknown>): 
   const set = <K extends keyof CamposReceita>(k: K, v: CamposReceita[K] | null) => { if (v != null) novo[k] = v }
   set('nome', str(r.nome))
   set('fonte', str(r.fonte))
-  set('regra', (umDe(r.regra, ['FIXA', 'VARIAVEL', 'HORAS']) ?? umDe(r.tipo_valor, ['FIXA', 'VARIAVEL'])) as CamposReceita['regra'] | null)
+  set('regra', (umDe(r.regra, ['FIXA', 'VARIAVEL', 'HORAS', 'AVULSA']) ?? umDe(r.tipo_valor, ['FIXA', 'VARIAVEL'])) as CamposReceita['regra'] | null)
   set('valor', reais(r.valor))
   set('valor_min', reais(r.valor_min))
   set('valor_max', reais(r.valor_max))

@@ -336,7 +336,11 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
     const valor = paraCentavos(v.valor)
     const min = paraCentavos(v.valor_min ?? ''), max = paraCentavos(v.valor_max ?? '')
     return [
-      ...(v.regra === 'HORAS' ? (() => {
+      ...(v.regra === 'AVULSA' ? [
+        { rotulo: 'Valor', valor: valor ? <Dinheiro valor={valor} /> : null, sub: 'uma vez só' },
+        { rotulo: 'Cai em', valor: v.inicio ? <span className="destaque-texto">{v.inicio.split('-').reverse().join('/')}</span> : null, sub: null },
+        { rotulo: 'Por ano', valor: valor ? <Dinheiro valor={valor} /> : null, sub: 'só esse mês' },
+      ] : v.regra === 'HORAS' ? (() => {
         const ph = parametrosPorHora(v)
         const c0 = competenciaDe(hoje())
         const p = (i: number) => ph ? previsaoDaReceita({ valor: 1, inicio: '0000-01-01', fim: null, regra: 'HORAS', ...ph }, deslocarCompetencia(c0, i)) : null

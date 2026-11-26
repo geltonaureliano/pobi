@@ -47,7 +47,12 @@ export function validarReceita(f: CamposReceita): { ok: true; valor: NovaReceita
   // Na regra por hora o "valor" é calculado: usa a previsão do mês atual como referência.
   const ph = horas ? parametrosPorHora(f) : null
   const ref = ph ? previsaoDaReceita({ valor: 1, inicio: '0000-01-01', fim: null, regra: 'HORAS', ...ph }, competenciaDe(hoje()))?.valor : null
-  const base = validarRecorrente({ ...f, valor: horas ? centavosParaTexto(ref ?? 1) : f.valor }, false)
+  // Avulsa: a data em que cai é o início; acaba no mesmo dia.
+  const avulsa = f.regra === 'AVULSA'
+  const base = validarRecorrente({
+    ...f, valor: horas ? centavosParaTexto(ref ?? 1) : f.valor,
+    ...(avulsa ? { fim: f.inicio, dia: f.inicio ? String(Number(f.inicio.slice(8, 10))) : '' } : {}),
+  }, false)
   const erros: ErrosReceita = base.ok ? {} : { ...base.erros }
   const variavel = f.regra === 'VARIAVEL'
   const min = variavel && f.valor_min.trim() ? paraCentavos(f.valor_min) : null

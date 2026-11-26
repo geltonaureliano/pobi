@@ -31,3 +31,18 @@ describe('previsão do mês', () => {
     expect(totalPrevisto([fixa, variavel, futura], '2026-12', [{ receita_id: 2, competencia: '2026-12', dias: null, valor: 1000000, observacao: null }])).toBe(1500000)
   })
 })
+
+describe('receita avulsa', () => {
+  const decimo = { id: 7, valor: 920100, inicio: '2026-11-30', fim: '2026-11-30', ativa: 1 as const, dia_recebimento: 30, regra: 'AVULSA' as const }
+  it('cai só no mês dela, na data dela', () => {
+    expect(previsaoDaReceita(decimo, '2026-11')).toMatchObject({ valor: 920100, data: '2026-11-30', regra: 'AVULSA' })
+    expect(previsaoDaReceita(decimo, '2026-12')).toBeNull()
+    expect(previsaoDaReceita(decimo, '2026-10')).toBeNull()
+  })
+})
+
+import { receitaVazia, validarReceita } from './form'
+it('validar avulsa: fim = data e dia = dia da data', () => {
+  const r = validarReceita({ ...receitaVazia(), nome: '13º', regra: 'AVULSA', valor: '9.201,00', inicio: '2026-11-30' })
+  expect(r.ok && r.valor).toMatchObject({ regra: 'AVULSA', inicio: '2026-11-30', fim: '2026-11-30', dia_recebimento: 30, valor: 920100 })
+})

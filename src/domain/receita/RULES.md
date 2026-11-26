@@ -8,6 +8,7 @@
 - Regras de valor:
   - **Fixa**: o mesmo valor todo mês.
   - **Variável**: a média esperada, com faixa opcional (mínimo e máximo).
+  - **Avulsa**: recebimento único (13º, bônus, PLR, restituição). Cai só no mês e dia da data informada; não entra nos outros meses.
   - **Por hora**: dias úteis do mês trabalhado × horas por dia × valor da hora, menos o desconto % (retenções/taxas entre o bruto e o que cai). O mês trabalhado é o do recebimento menos a defasagem (1 = paga no mês seguinte, como NF emitida no início do mês).
 - Dias úteis: segunda a sexta, sem feriados nacionais (inclui Sexta-feira Santa e Consciência Negra; Carnaval e Corpus Christi são pontos facultativos e não descontam).
 - A previsão é sempre calculada pela regra (sem ajuste manual por mês). Na regra por hora a tela mostra bruto, taxas (o desconto %) e o líquido previsto.

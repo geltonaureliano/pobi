@@ -735,3 +735,4 @@ body { font-size: 13.5px; font-feature-settings: 'ss01'; }
 .destaque-texto { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .categoria-nova { display: flex; align-items: center; gap: 8px; min-height: var(--ctl-h); padding: 0 6px 0 12px; border-radius: var(--ctl-raio); border: 1.5px dashed var(--laranja-2); background: #fffaf0; font-size: 12.5px; }
 .categoria-nova .aba { margin-left: auto; }
+.tag.tipo-avulsa { background: #f1e8fb; color: #7a4bc0; }

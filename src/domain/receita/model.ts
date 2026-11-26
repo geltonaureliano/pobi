@@ -28,7 +28,8 @@ export interface Receita {
   defasagem_meses: number
 }
 
-export type RegraReceita = 'FIXA' | 'VARIAVEL' | 'HORAS'
+/** AVULSA: recebimento único (13º, bônus, restituição), na data de `inicio`. */
+export type RegraReceita = 'FIXA' | 'VARIAVEL' | 'HORAS' | 'AVULSA'
 
 /** Ajuste manual de uma receita em um mês (dias trabalhados ou valor já conhecido). */
 export interface AjusteReceitaMes {

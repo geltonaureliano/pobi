@@ -1,4 +1,4 @@
-import { dataNoMes, deslocarCompetencia, diasNoMes, type Competencia, type DataISO } from '../../shared/data'
+import { competenciaDe, dataNoMes, deslocarCompetencia, diasNoMes, type Competencia, type DataISO } from '../../shared/data'
 import type { Centavos } from '../../shared/dinheiro'
 import { diasUteis } from '../../shared/feriados'
 import type { AjusteReceitaMes, Receita } from './model'
@@ -26,7 +26,7 @@ type ReceitaCalculavel = Vigente & Partial<Pick<Receita, 'id' | 'regra' | 'tipo_
 
 export interface PrevisaoReceita {
   valor: Centavos
-  regra: 'FIXA' | 'VARIAVEL' | 'HORAS'
+  regra: 'FIXA' | 'VARIAVEL' | 'HORAS' | 'AVULSA'
   /** Data prevista do dinheiro cair (dia do recebimento ou último dia do mês). */
   data: DataISO
   ajustado: boolean
@@ -39,12 +39,17 @@ export interface PrevisaoReceita {
  * Quanto a receita deve render na competência `c`.
  * - FIXA: o valor cadastrado.
  * - VARIAVEL: a média cadastrada (com a faixa de mínimo e máximo, se houver).
+ * - AVULSA: cai uma vez só, no mês e dia de `inicio`.
  * - HORAS: dias úteis do mês trabalhado (c − defasagem) × horas/dia × valor da hora, menos o desconto %.
  * Um ajuste do mês troca os dias trabalhados ou fixa o valor.
  */
 export function previsaoDaReceita(r: ReceitaCalculavel, c: Competencia, ajuste?: Pick<AjusteReceitaMes, 'dias' | 'valor'> | null): PrevisaoReceita | null {
   if (pausado(r) || !ativaNaCompetencia(r, c)) return null
   const regra = r.regra ?? (r.tipo_valor === 'VARIAVEL' ? 'VARIAVEL' : 'FIXA')
+  if (regra === 'AVULSA') {
+    if (competenciaDe(r.inicio) !== c) return null
+    return { valor: ajuste?.valor ?? r.valor, regra, data: r.inicio, ajustado: ajuste?.valor != null }
+  }
   const data = r.dia_recebimento ? dataNoMes(c, r.dia_recebimento) : dataNoMes(c, diasNoMes(c))
   if (regra === 'HORAS' && r.valor_hora && r.horas_dia) {
     const referencia = deslocarCompetencia(c, -(r.defasagem_meses ?? 1))

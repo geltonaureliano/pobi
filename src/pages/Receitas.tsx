@@ -18,7 +18,7 @@ import { BotaoConversas, HistoricoConversas } from './assistente/Historico'
 import { CamposReceitaForm } from './assistente/formularios'
 import { toast } from '../ui/toast'
 
-const ROTULO_REGRA = { FIXA: 'fixa', VARIAVEL: 'variável', HORAS: 'por hora' } as const
+const ROTULO_REGRA = { FIXA: 'fixa', VARIAVEL: 'variável', HORAS: 'por hora', AVULSA: 'avulsa' } as const
 const fontes = (n: number) => `${n} ${n === 1 ? 'fonte' : 'fontes'}`
 const br = (d: string) => d.split('-').reverse().slice(0, 2).join('/')
 
@@ -28,6 +28,7 @@ function comoCalculou(r: Receita, p: PrevisaoReceita) {
     const h = p.horas
     return `${h.dias} dias úteis de ${rotuloCompetencia(h.referencia).toLowerCase()} × ${pctParaTexto(r.horas_dia)}h × ${formatarBRL(r.valor_hora ?? 0)}/h${h.descontoPct ? ` − ${pctParaTexto(Math.round(h.descontoPct * 100) / 100)}%` : ''}`
   }
+  if (p.regra === 'AVULSA') return 'recebimento único, só neste mês'
   if (p.regra === 'VARIAVEL') return p.faixa?.min || p.faixa?.max ? 'média · varia na faixa abaixo' : 'média esperada'
   return 'mesmo valor todo mês'
 }
@@ -170,7 +171,7 @@ export function Receitas({ dados, recarregar }: { dados: Dados; recarregar: () =
             <span className="sutil">Fora deste mês:</span>
             {fora.map((r) => (
               <span key={r.id} className="chip-fora">
-                {r.nome} <small>{!r.ativa ? 'pausada' : r.inicio > `${c}-31` ? `começa ${br(r.inicio)}/${r.inicio.slice(2, 4)}` : 'encerrada'}</small>
+                {r.nome} <small>{!r.ativa ? 'pausada' : r.regra === 'AVULSA' ? `avulsa · ${br(r.inicio)}/${r.inicio.slice(2, 4)}` : r.inicio > `${c}-31` ? `começa ${br(r.inicio)}/${r.inicio.slice(2, 4)}` : 'encerrada'}</small>
                 <button className="botao-icone" onClick={() => editarComChat(r)} aria-label={`Editar ${r.nome}`} title="Editar (abre o assistente)"><IconeEditar /></button>
               </span>
             ))}
