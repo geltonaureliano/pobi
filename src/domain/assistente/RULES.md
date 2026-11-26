@@ -2,10 +2,10 @@
 
 - Usado para cadastrar **dívidas** e **receitas**. O usuário escreve e/ou anexa arquivos (contrato, boleto, print, holerite, PDF, planilha, qualquer tipo).
 - Roda o CLI de IA da máquina (Claude Code ou Codex, escolhido em Ajustes). Os anexos são gravados numa pasta temporária, a IA só pode **ler** essa pasta e ela é apagada ao fim de cada resposta. Nada vai para servidor do app.
-- O CLI não guarda conversa: a cada mensagem enviamos o histórico, o rascunho atual (incluindo correções feitas à mão) e os anexos novos.
+- O CLI não guarda conversa: a cada mensagem enviamos o histórico, o rascunho atual (incluindo correções feitas à mão) e todos os anexos da conversa.
 - A IA responde um JSON com `resposta` (chat), `resumo`, `confianca`, `pendencias` e `rascunho`. Valores em reais, datas AAAA-MM-DD, taxas em %.
 - O rascunho **só preenche o que veio**; campos que a IA devolveu nulos ficam como estavam. O usuário pode editar tudo no painel de revisão antes de confirmar.
-- Nada é gravado até o usuário clicar em **Confirmar e cadastrar**. A validação é a mesma do cadastro manual.
+- Nenhuma dívida ou receita é criada até o usuário clicar em **Confirmar e cadastrar** (só a conversa fica salva como rascunho). A validação é a mesma do cadastro manual.
 - Dívida: com valor de parcela, o total é parcela × quantidade. "Parcelas pagas" marca as primeiras parcelas como pagas na data de vencimento, sem criar lançamentos (o dinheiro saiu antes do app).
 - No navegador (`npm run dev`) não há CLI: uma simulação por heurística preenche o rascunho para testar a interface, e a resposta avisa que é demonstração.
 - **Conversas salvas** (`conversas_ia`): cada conversa é gravada sozinha a cada mensagem e, com uma pausa curta, a cada correção nos campos. Enquanto não é confirmada fica como **rascunho**; ao confirmar vira **concluída** e guarda o id do item criado. Anexos até 30 MB por conversa ficam guardados junto, para a IA reler o arquivo quando a conversa é retomada.
