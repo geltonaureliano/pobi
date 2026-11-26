@@ -48,3 +48,45 @@ export async function salvarAjuste(chave: string, valor: string) {
     [chave, valor],
   )
 }
+
+export const NOME_MOTOR: Record<Motor, string> = { claude: 'Claude Code', codex: 'Codex' }
+
+/** Traduz a falha do CLI em algo que dá para resolver. */
+export function explicarErroIA(motor: Motor, msg: string): { tipo: 'login' | 'ausente' | 'outro'; texto: string } {
+  const m = msg.toLowerCase()
+  if (/not logged in|please run \/login|oauth|authenticat|unauthori[sz]ed|401|login required|not authenticated|expired/.test(m)) {
+    return {
+      tipo: 'login',
+      texto: motor === 'claude'
+        ? 'O Claude Code não está logado neste Mac. Abra o Terminal, rode `claude` e digite /login.'
+        : 'O Codex não está logado. Abra o app do ChatGPT/Codex e entre na sua conta (ou rode `codex login`).',
+    }
+  }
+  if (/não foi encontrado|not found|no such file/.test(m)) {
+    return { tipo: 'ausente', texto: `O ${NOME_MOTOR[motor]} não foi encontrado neste Mac.` }
+  }
+  return { tipo: 'outro', texto: msg.replace(/^\w+ terminou com erro:\s*/, `${NOME_MOTOR[motor]} falhou: `) }
+}
+
+/**
+ * Tenta o motor preferido e, se ele não estiver instalado ou logado, o outro.
+ * Erros de conteúdo (resposta ruim, timeout) não trocam de motor.
+ */
+export async function comMotorDisponivel<T>(preferido: Motor, rodar: (m: Motor) => Promise<T>): Promise<{ valor: T; motor: Motor; aviso: string | null }> {
+  const disponiveis = await motoresDisponiveis()
+  const ordem: Motor[] = [preferido, preferido === 'claude' ? 'codex' : 'claude']
+  const instalado = (m: Motor) => !emTauri() || disponiveis.some((d) => d.motor === m && d.caminho)
+  const falhas: string[] = []
+  for (const m of ordem) {
+    if (!instalado(m)) { falhas.push(`O ${NOME_MOTOR[m]} não foi encontrado neste Mac.`); continue }
+    try {
+      const valor = await rodar(m)
+      return { valor, motor: m, aviso: m !== preferido ? `${falhas.join(' ')} Usei o ${NOME_MOTOR[m]}.` : null }
+    } catch (e) {
+      const ex = explicarErroIA(m, e instanceof Error ? e.message : String(e))
+      if (ex.tipo === 'outro') throw new Error(ex.texto)
+      falhas.push(ex.texto)
+    }
+  }
+  throw new Error(`${falhas.join(' ')} Instale ou faça login em um dos dois para usar a IA.`)
+}

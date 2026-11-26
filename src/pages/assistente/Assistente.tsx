@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEven
 import { hoje, competenciaDe } from '../../shared/data'
 import { paraCentavos } from '../../shared/dinheiro'
 import type { Motor } from '../../domain/analise/model'
-import { lerAjuste } from '../../domain/analise/repository'
+import { comMotorDisponivel, lerAjuste, motoresDisponiveis, NOME_MOTOR, salvarAjuste, type MotorDisponivel } from '../../domain/analise/repository'
 import type { AlvoAssistente, AnexoLocal, Confianca, MensagemChat } from '../../domain/assistente/model'
 import { aplicarNaDivida, aplicarNaReceita, interpretarAssistente, montarPromptAssistente, rascunhoDosCampos, tamanhoLegivel } from '../../domain/assistente/rules'
 import { executarAssistente, lerArquivo } from '../../domain/assistente/repository'
@@ -67,6 +67,8 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
   const fr = useForm<CamposRecorrente>(receitaVazia(principal))
 
   const [motor, setMotor] = useState<Motor>('claude')
+  const [motores, setMotores] = useState<MotorDisponivel[]>([])
+  const arrastos = useRef(0)
   const [mensagens, setMensagens] = useState<MensagemChat[]>([])
   const [arquivos, setArquivos] = useState<AnexoLocal[]>([])
   const [pendentes, setPendentes] = useState<AnexoLocal[]>([])
@@ -82,7 +84,17 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
   const seletor = useRef<HTMLInputElement>(null)
   const caixa = useRef<HTMLTextAreaElement>(null)
 
-  useEffect(() => { lerAjuste('motor').then((m) => m && setMotor(m as Motor)).catch(() => {}) }, [])
+  useEffect(() => {
+    lerAjuste('motor').then((m) => m && setMotor(m as Motor)).catch(() => {})
+    motoresDisponiveis().then(setMotores).catch(() => {})
+  }, [])
+  // Arrastar arquivo do Finder: a área inteira do chat vira dropzone (contador evita piscar entre elementos filhos).
+  useEffect(() => {
+    const evitar = (e: globalThis.DragEvent) => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault() }
+    window.addEventListener('dragover', evitar)
+    window.addEventListener('drop', evitar)
+    return () => { window.removeEventListener('dragover', evitar); window.removeEventListener('drop', evitar) }
+  }, [])
   useEffect(() => { lista.current?.scrollTo({ top: lista.current.scrollHeight, behavior: 'smooth' }) }, [mensagens, rodando])
   useEffect(() => {
     if (!rodando) return
@@ -124,7 +136,10 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
       const prompt = montarPromptAssistente({
         alvo, hoje: hoje(), historico, rascunhoAtual: rascunhoDosCampos(formAtual), arquivos: todos.map((a, i) => nomeNaPasta(a.nome, i)),
       })
-      const r = interpretarAssistente(await executarAssistente(motor, prompt, todos, alvo, t))
+      const exec = await comMotorDisponivel(motor, (m) => executarAssistente(m, prompt, todos, alvo, t))
+      if (exec.motor !== motor) setMotor(exec.motor)
+      const r = interpretarAssistente(exec.valor)
+      if (exec.aviso) r.resposta = `${exec.aviso}\n\n${r.resposta}`
       let mudou: string[] = []
       if (alvo === 'divida') {
         const novo = aplicarNaDivida(fd.valores, r.rascunho)
@@ -147,10 +162,14 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
   function teclar(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); enviar() }
   }
+  const temArquivo = (e: DragEvent) => e.dataTransfer.types.includes('Files')
+  function entrar(e: DragEvent) { if (!temArquivo(e)) return; e.preventDefault(); arrastos.current++; setArrastando(true) }
+  function sair(e: DragEvent) { if (!temArquivo(e)) return; arrastos.current = Math.max(0, arrastos.current - 1); if (!arrastos.current) setArrastando(false) }
   function soltar(e: DragEvent) {
-    e.preventDefault(); setArrastando(false)
+    e.preventDefault(); arrastos.current = 0; setArrastando(false)
     if (e.dataTransfer.files.length) anexar(e.dataTransfer.files)
   }
+  function trocarMotor(m: Motor) { setMotor(m); salvarAjuste('motor', m).catch(() => {}) }
 
   const rolarAteErro = () => requestAnimationFrame(() => document.querySelector('.revisao-form .com-erro')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
 
@@ -212,16 +231,27 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
           <h1>Nova {nomeItem} com IA</h1>
           <span className="sutil">Conte, cole ou anexe. Você revisa tudo antes de salvar.</span>
         </div>
-        <span className={`motor-selo ${emTauri() ? '' : 'demo'}`} title={emTauri() ? 'Roda no seu computador' : 'No navegador a IA é simulada'}>
-          <i />{emTauri() ? `${motor === 'claude' ? 'Claude Code' : 'Codex'} · local` : 'Demonstração'}
-        </span>
+        {emTauri() ? (
+          <div className="motores" role="radiogroup" aria-label="Motor de IA">
+            {(['claude', 'codex'] as Motor[]).map((m) => {
+              const ok = motores.find((x) => x.motor === m)?.caminho
+              return (
+                <button key={m} role="radio" aria-checked={motor === m} className={motor === m ? 'on' : ''} disabled={rodando}
+                  title={ok ? `Usar o ${NOME_MOTOR[m]} (${ok})` : `${NOME_MOTOR[m]} não encontrado neste Mac`} onClick={() => trocarMotor(m)}>
+                  <i className={ok ? 'ok' : 'ausente'} />{NOME_MOTOR[m]}
+                </button>
+              )
+            })}
+          </div>
+        ) : <span className="motor-selo demo" title="No navegador a IA é simulada"><i />Demonstração</span>}
       </header>
 
       <div className="assistente-corpo">
         <section
           className={`chat ${arrastando ? 'arrastando' : ''}`}
-          onDragOver={(e) => { e.preventDefault(); setArrastando(true) }}
-          onDragLeave={(e) => { if (e.currentTarget === e.target) setArrastando(false) }}
+          onDragEnter={entrar}
+          onDragOver={(e) => { if (temArquivo(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' } }}
+          onDragLeave={sair}
           onDrop={soltar}
         >
           <div className="chat-lista" ref={lista}>
@@ -258,7 +288,7 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
             )}
           </div>
 
-          <div className="composer">
+          <div className={`composer ${arrastando ? 'soltando' : ''}`}>
             {aviso && <div className="composer-aviso">{aviso}</div>}
             {pendentes.length > 0 && (
               <div className="composer-anexos">
@@ -270,6 +300,7 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
                 ))}
               </div>
             )}
+            {arrastando && <div className="composer-soltar"><IconeArquivo nome="" />Solte os arquivos aqui</div>}
             <textarea
               ref={caixa} rows={1} value={texto} autoFocus disabled={rodando}
               placeholder={mensagens.length ? 'Responda, corrija algo ou tire uma dúvida…' : `Descreva a ${nomeItem} ou anexe arquivos…`}
@@ -282,7 +313,7 @@ export function Assistente({ alvo, dados, voltar, concluir }: {
                 Anexar
               </button>
               <input ref={seletor} type="file" multiple hidden onChange={(e) => { if (e.target.files) anexar(e.target.files); e.target.value = '' }} />
-              <span className="composer-dica">Enter envia · Shift+Enter quebra linha · arraste ou cole arquivos</span>
+              <span className="composer-dica">Enter envia · Shift+Enter quebra linha · arraste arquivos para cá ou cole</span>
               <button className="botao-enviar" onClick={() => enviar()} disabled={rodando || (!texto.trim() && !pendentes.length)} aria-label="Enviar">
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5L8 3l4.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>

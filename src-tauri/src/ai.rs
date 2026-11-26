@@ -16,13 +16,38 @@ fn shell_de_login() -> String {
     std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into())
 }
 
+/// Procura o CLI no PATH do shell de login e, se não achar, nos lugares onde os
+/// instaladores e apps costumam deixá-lo (o Codex vem dentro do app do ChatGPT/Codex).
 fn localizar(binario: &str) -> Option<String> {
     let saida = Command::new(shell_de_login())
         .args(["-lc", &format!("command -v {binario}")])
         .output()
-        .ok()?;
-    let caminho = String::from_utf8_lossy(&saida.stdout).trim().to_string();
-    (saida.status.success() && !caminho.is_empty()).then_some(caminho)
+        .ok();
+    if let Some(s) = saida {
+        let caminho = String::from_utf8_lossy(&s.stdout).trim().to_string();
+        if s.status.success() && !caminho.is_empty() {
+            return Some(caminho);
+        }
+    }
+    let casa = std::env::var("HOME").unwrap_or_default();
+    let candidatos: Vec<String> = match binario {
+        "codex" => vec![
+            "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex".into(),
+            "/Applications/Codex.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex".into(),
+            "/Applications/Codex.app/Contents/Resources/codex".into(),
+            format!("{casa}/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"),
+            "/opt/homebrew/bin/codex".into(),
+            "/usr/local/bin/codex".into(),
+            format!("{casa}/.local/bin/codex"),
+        ],
+        _ => vec![
+            format!("{casa}/.claude/local/claude"),
+            format!("{casa}/.local/bin/claude"),
+            "/opt/homebrew/bin/claude".into(),
+            "/usr/local/bin/claude".into(),
+        ],
+    };
+    candidatos.into_iter().find(|c| std::path::Path::new(c).is_file())
 }
 
 #[tauri::command]
@@ -126,13 +151,14 @@ fn rodar(motor: &str, prompt: &str, pasta: Option<&std::path::Path>, anexos: &[S
         if binario == "claude" {
             args.extend(["--add-dir".into(), p, "--allowedTools".into(), "Read".into()]);
         } else {
-            args.extend(["-C".into(), p.clone()]);
+            // -i aceita vários arquivos: vem antes de -C para não engolir os próximos argumentos.
             for a in anexos {
                 let ext = a.rsplit('.').next().unwrap_or("").to_lowercase();
                 if IMAGENS.contains(&ext.as_str()) {
-                    args.extend(["-i".into(), format!("{p}/{a}")]);
+                    args.push(format!("--image={p}/{a}"));
                 }
             }
+            args.extend(["-C".into(), p.clone()]);
         }
     }
     if binario == "codex" {
@@ -159,10 +185,12 @@ fn rodar(motor: &str, prompt: &str, pasta: Option<&std::path::Path>, anexos: &[S
 
     let saida = filho.wait_with_output().map_err(|e| e.to_string())?;
     if !saida.status.success() {
-        return Err(format!(
-            "{binario} terminou com erro: {}",
-            String::from_utf8_lossy(&saida.stderr).trim()
-        ));
+        // O Claude Code escreve alguns erros (ex.: "Not logged in") na saída padrão.
+        let erro = String::from_utf8_lossy(&saida.stderr).trim().to_string();
+        let saida_txt = String::from_utf8_lossy(&saida.stdout).trim().to_string();
+        let detalhe = if erro.is_empty() { saida_txt } else { erro };
+        let detalhe: String = detalhe.chars().rev().take(600).collect::<Vec<_>>().into_iter().rev().collect();
+        return Err(format!("{binario} terminou com erro: {detalhe}"));
     }
     Ok(String::from_utf8_lossy(&saida.stdout).to_string())
 }

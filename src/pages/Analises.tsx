@@ -3,7 +3,7 @@ import { competenciaDe, hoje, rotuloCompetencia } from '../shared/data'
 import { emTauri } from '../db/client'
 import type { Motor, ResultadoAnalise } from '../domain/analise/model'
 import { impressao, interpretarResposta, montarPrompt, montarResumo } from '../domain/analise/rules'
-import { buscarPorImpressao, executarNoCLI, lerAjuste, listarAnalises, salvarAnalise } from '../domain/analise/repository'
+import { buscarPorImpressao, comMotorDisponivel, executarNoCLI, lerAjuste, listarAnalises, salvarAnalise } from '../domain/analise/repository'
 import { listarOrcamentos } from '../domain/orcamento/repository'
 import type { Dados } from '../ui/useDados'
 
@@ -29,8 +29,10 @@ export function Analises({ dados }: { dados: Dados }) {
       if (salva) {
         setResultado(JSON.parse(salva.resultado_json)); setQuando(salva.criado_em)
       } else {
-        const r = interpretarResposta(await executarNoCLI(motor, montarPrompt(resumo)))
-        await salvarAnalise(c, motor, imp, resumo, r)
+        const exec = await comMotorDisponivel(motor, (m) => executarNoCLI(m, montarPrompt(resumo)))
+        const r = interpretarResposta(exec.valor)
+        await salvarAnalise(c, exec.motor, imp, resumo, r)
+        if (exec.aviso) setErro(exec.aviso)
         setResultado(r); setQuando('agora')
       }
     } catch (e) {
