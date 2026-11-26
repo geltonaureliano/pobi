@@ -3,7 +3,9 @@ import type { CamposDivida } from '../../domain/divida/form'
 import { totalDoFormulario } from '../../domain/divida/form'
 import { SISTEMAS, TIPOS_DIVIDA } from '../../domain/divida/model'
 import { taxaAnualDe } from '../../domain/divida/rules'
-import type { CamposRecorrente } from '../../shared/recorrente'
+import { parametrosPorHora, type CamposReceita } from '../../domain/receita/form'
+import { previsaoDaReceita } from '../../domain/receita/rules'
+import { competenciaDe, deslocarCompetencia, hoje, rotuloCompetencia } from '../../shared/data'
 import type { Categoria } from '../../domain/categoria/model'
 import { AreaTexto, Campo, Data, Moeda, Segmentos, Selecao, Texto } from '../../ui/components/Campos'
 import { Dinheiro } from '../../ui/components/Dinheiro'
@@ -65,30 +67,56 @@ export function CamposDividaForm({ f, nova, categorias, destacar = [], foco = no
   )
 }
 
-/** Campos de receita (fixa ou variável). */
+/** Campos de receita: fixa, variável (média e faixa) ou por hora (calculada mês a mês). */
 export function CamposReceitaForm({ f, categorias, contas, destacar = [], foco }: {
-  f: Form<CamposRecorrente>; categorias: Categoria[]; contas: { id: number; nome: string }[]; destacar?: string[]; foco?: boolean
+  f: Form<CamposReceita>; categorias: Categoria[]; contas: { id: number; nome: string }[]; destacar?: string[]; foco?: boolean
 }) {
   const v = f.valores
-  const variavel = v.tipo_valor === 'VARIAVEL'
-  const d = (k: keyof CamposRecorrente) => (destacar.includes(k) ? 'destacado' : undefined)
+  const d = (k: keyof CamposReceita) => (destacar.includes(k) ? 'destacado' : undefined)
+  const ph = v.regra === 'HORAS' ? parametrosPorHora(v) : null
+  const c0 = competenciaDe(hoje())
+  const exemplos = ph ? [0, 1, 2].map((i) => {
+    const c = deslocarCompetencia(c0, i)
+    return { c, p: previsaoDaReceita({ valor: 1, inicio: '0000-01-01', fim: null, regra: 'HORAS', ...ph }, c)! }
+  }) : []
   return (
     <>
       <div className={d('nome')} style={{ gridColumn: '1 / -1' }}><Campo rotulo="Nome" erro={f.erros.nome}><Texto autoFocus={foco} placeholder="Salário, freela, aluguel recebido…" {...f.campo('nome')} /></Campo></div>
       <div className={d('fonte')}><Campo rotulo="Quem paga"><Texto placeholder="Empresa, cliente…" {...f.campo('fonte')} /></Campo></div>
-      <div className={d('tipo_valor')}>
-        <Campo rotulo="O valor é">
-          <Segmentos value={v.tipo_valor ?? 'FIXA'} onChange={(t) => f.setValores((x) => ({ ...x, tipo_valor: t as 'FIXA' | 'VARIAVEL' }))} itens={[{ id: 'FIXA', nome: 'Fixo' }, { id: 'VARIAVEL', nome: 'Variável' }]} />
+      <div className={d('dia')}><Campo rotulo="Dia que cai" erro={f.erros.dia} dica="Vazio = último dia do mês"><Texto placeholder="10" numerico maxLength={2} {...f.campo('dia')} /></Campo></div>
+      <div className={d('regra')} style={{ gridColumn: '1 / -1' }}>
+        <Campo rotulo="Como o valor é definido">
+          <Segmentos value={v.regra} onChange={(t) => f.setValores((x) => ({ ...x, regra: t as CamposReceita['regra'] }))}
+            itens={[{ id: 'FIXA', nome: 'Fixo todo mês' }, { id: 'VARIAVEL', nome: 'Variável (média)' }, { id: 'HORAS', nome: 'Por hora trabalhada' }]} />
         </Campo>
       </div>
-      <div className={d('valor')}><Campo rotulo={variavel ? 'Média esperada por mês' : 'Valor mensal'} erro={f.erros.valor} dica={variavel ? 'Usada na previsão do mês' : undefined}><Moeda {...f.campo('valor')} /></Campo></div>
-      <div className={d('dia')}><Campo rotulo="Dia do recebimento" erro={f.erros.dia}><Texto placeholder="opcional" numerico maxLength={2} {...f.campo('dia')} /></Campo></div>
-      {variavel && <>
+      {v.regra !== 'HORAS' && <div className={d('valor')}><Campo rotulo={v.regra === 'VARIAVEL' ? 'Média esperada por mês' : 'Valor mensal'} erro={f.erros.valor} dica={v.regra === 'VARIAVEL' ? 'Usada na previsão do mês' : undefined}><Moeda {...f.campo('valor')} /></Campo></div>}
+      {v.regra === 'VARIAVEL' && <>
+        <div />
         <div className={d('valor_min')}><Campo rotulo="Mês fraco (mínimo)" erro={f.erros.valor_min}><Moeda {...f.campo('valor_min')} /></Campo></div>
         <div className={d('valor_max')}><Campo rotulo="Mês bom (máximo)" erro={f.erros.valor_max}><Moeda {...f.campo('valor_max')} /></Campo></div>
       </>}
-      <div className={d('inicio')}><Campo rotulo="Início" erro={f.erros.inicio}><Data {...f.campo('inicio')} /></Campo></div>
-      <div className={d('fim')}><Campo rotulo="Fim" erro={f.erros.fim} dica="Vazio = sem data para acabar"><Data {...f.campo('fim')} /></Campo></div>
+      {v.regra === 'HORAS' && <>
+        <div className={d('valor_hora')}><Campo rotulo="Valor da hora (bruto)" erro={f.erros.valor_hora}><Moeda {...f.campo('valor_hora')} /></Campo></div>
+        <div className={d('horas_dia')}><Campo rotulo="Horas por dia útil" erro={f.erros.horas_dia}><Texto inputMode="decimal" sufixo="h/dia" {...f.campo('horas_dia')} /></Campo></div>
+        <div className={d('desconto_pct')}><Campo rotulo="Desconto até cair na conta" erro={f.erros.desconto_pct} dica="Retenções, taxas: bruto → líquido"><Texto inputMode="decimal" sufixo="%" placeholder="0" {...f.campo('desconto_pct')} /></Campo></div>
+        <div className={d('defasagem')}><Campo rotulo="O pagamento é pelo trabalho de">
+          <Selecao {...f.campo('defasagem')} vazio={null} itens={[{ id: '1', nome: 'Mês anterior', dica: 'NF no mês seguinte' }, { id: '0', nome: 'Mesmo mês' }, { id: '2', nome: 'Dois meses antes' }]} />
+        </Campo></div>
+        <div className="previsao-horas" style={{ gridColumn: '1 / -1' }}>
+          <span className="campo-rotulo">Como vai ficar</span>
+          {ph ? exemplos.map(({ c, p }) => (
+            <div key={c} className="previsao-linha">
+              <strong>{rotuloCompetencia(c)}</strong>
+              <span>{p.horas!.dias} dias úteis de {rotuloCompetencia(p.horas!.referencia).toLowerCase()} × {pctParaTexto(ph.horas_dia)}h{p.horas!.descontoPct ? ` − ${pctParaTexto(p.horas!.descontoPct)}%` : ''}</span>
+              <Dinheiro valor={p.valor} tom="pos" />
+            </div>
+          )) : <p className="sutil" style={{ margin: 0 }}>Preencha o valor da hora e as horas por dia para ver os próximos meses.</p>}
+          <small className="sutil">Dias úteis = segunda a sexta, sem feriados nacionais. Dá para ajustar os dias de um mês específico na tela de Receitas.</small>
+        </div>
+      </>}
+      <div className={d('inicio')}><Campo rotulo="Recebe a partir de" erro={f.erros.inicio}><Data {...f.campo('inicio')} /></Campo></div>
+      <div className={d('fim')}><Campo rotulo="Até" erro={f.erros.fim} dica="Vazio = sem data para acabar"><Data {...f.campo('fim')} /></Campo></div>
       <Campo rotulo="Categoria"><Selecao {...f.campo('categoria_id')} itens={categorias.filter((k) => k.tipo === 'RECEITA')} /></Campo>
       <Campo rotulo="Cai na conta"><Selecao {...f.campo('conta_id')} itens={contas} /></Campo>
       <div className={d('observacao')} style={{ gridColumn: '1 / -1' }}><Campo rotulo="Observações"><AreaTexto linhas={2} placeholder="Comissão, 13º, sazonalidade…" {...f.campo('observacao')} /></Campo></div>

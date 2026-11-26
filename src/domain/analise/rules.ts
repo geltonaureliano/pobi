@@ -10,7 +10,7 @@ import { parcelasAtrasadas, proximasParcelas, saldoDevedor } from '../divida/rul
 import type { LancamentoDetalhado } from '../lancamento/model'
 import { confirmado, despesaPorCategoria, totaisDaCompetencia } from '../lancamento/rules'
 import type { Orcamento } from '../orcamento/model'
-import type { Receita } from '../receita/model'
+import type { AjusteReceitaMes, Receita } from '../receita/model'
 import { totalPrevisto } from '../receita/rules'
 import type { Insight, ResultadoAnalise, ResumoFinanceiro } from './model'
 import { relatorioMensal } from '../relatorio/rules'
@@ -25,6 +25,7 @@ export interface EntradaResumo {
   categorias: Categoria[]
   orcamentos: (Orcamento & { categoria_nome: string })[]
   receitas: Receita[]
+  receitasMes?: AjusteReceitaMes[]
   custosFixos: CustoFixo[]
   parcelas: Parcela[]
 }
@@ -69,7 +70,7 @@ export function montarResumo(e: EntradaResumo): ResumoFinanceiro {
         limite: reais(o.limite),
         gasto: reais(atual.find((f) => f.categoria_id === o.categoria_id)?.valor ?? 0),
       })),
-    receitaPrevista: reais(totalPrevisto(e.receitas, c)),
+    receitaPrevista: reais(totalPrevisto(e.receitas, c, e.receitasMes)),
     custosFixos: {
       total: reais(custos.reduce((s, x) => s + x.custo.valor, 0)),
       pagos: custos.filter((x) => x.pago).length,

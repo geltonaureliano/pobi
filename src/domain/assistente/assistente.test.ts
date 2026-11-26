@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { aplicarNaDivida, aplicarNaReceita, interpretarAssistente, montarPromptAssistente } from './rules'
 import { camposDividaVazios, validarDivida } from '../divida/form'
+import { receitaVazia } from '../receita/form'
 import { gerarParcelasFixas, taxaAnualDe } from '../divida/rules'
 
 describe('interpretarAssistente', () => {
@@ -39,9 +40,12 @@ describe('aplicarNaDivida', () => {
 
 describe('aplicarNaReceita', () => {
   it('receita variável com faixa', () => {
-    const base = { nome: '', valor: '', dia: '', inicio: '2026-01-01', fim: '', conta_id: '', cartao_id: '', categoria_id: '', observacao: '' }
-    const r = aplicarNaReceita(base, { nome: 'Freela', tipo_valor: 'VARIAVEL', valor: 3000, valor_min: 2000, valor_max: 4500, dia_recebimento: 10 })
-    expect(r).toMatchObject({ nome: 'Freela', tipo_valor: 'VARIAVEL', valor: '3.000,00', valor_min: '2.000,00', valor_max: '4.500,00', dia: '10' })
+    const r = aplicarNaReceita(receitaVazia(), { nome: 'Freela', tipo_valor: 'VARIAVEL', valor: 3000, valor_min: 2000, valor_max: 4500, dia_recebimento: 10 })
+    expect(r).toMatchObject({ nome: 'Freela', regra: 'VARIAVEL', valor: '3.000,00', valor_min: '2.000,00', valor_max: '4.500,00', dia: '10' })
+  })
+  it('receita por hora', () => {
+    const r = aplicarNaReceita(receitaVazia(), { nome: 'Keyrus', valor_hora: 88, horas_dia: 8, desconto_pct: 6.15, defasagem_meses: 1 })
+    expect(r).toMatchObject({ regra: 'HORAS', valor_hora: '88,00', horas_dia: '8', desconto_pct: '6,15', defasagem: '1' })
   })
 })
 

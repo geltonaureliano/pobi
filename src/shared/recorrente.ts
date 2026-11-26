@@ -12,11 +12,6 @@ export interface CamposRecorrente {
   cartao_id: string
   categoria_id: string
   observacao: string
-  /** Só receitas: FIXA ou VARIAVEL, faixa e fonte pagadora. */
-  tipo_valor?: 'FIXA' | 'VARIAVEL'
-  valor_min?: string
-  valor_max?: string
-  fonte?: string
 }
 
 export function validarRecorrente(f: CamposRecorrente, permiteCartao: boolean) {
@@ -30,14 +25,6 @@ export function validarRecorrente(f: CamposRecorrente, permiteCartao: boolean) {
   if (f.fim && !dataValida(f.fim)) erros.fim = 'Data inválida.'
   if (f.fim && dataValida(f.fim) && f.fim < f.inicio) erros.fim = 'O fim precisa ser depois do início.'
   if (permiteCartao && f.conta_id && f.cartao_id) erros.cartao_id = 'Escolha conta ou cartão, não os dois.'
-  const variavel = f.tipo_valor === 'VARIAVEL'
-  const min = variavel && f.valor_min?.trim() ? paraCentavos(f.valor_min) : null
-  const max = variavel && f.valor_max?.trim() ? paraCentavos(f.valor_max) : null
-  if (variavel && f.valor_min?.trim() && !(min && min > 0)) erros.valor_min = 'Valor inválido.'
-  if (variavel && f.valor_max?.trim() && !(max && max > 0)) erros.valor_max = 'Valor inválido.'
-  if (min && max && min > max) erros.valor_max = 'O máximo precisa ser maior que o mínimo.'
-  if (min && valor && valor < min) erros.valor = 'A média ficou abaixo do mínimo.'
-  if (max && valor && valor > max) erros.valor = 'A média ficou acima do máximo.'
   if (Object.keys(erros).length) return { ok: false as const, erros }
   return {
     ok: true as const,
@@ -47,10 +34,6 @@ export function validarRecorrente(f: CamposRecorrente, permiteCartao: boolean) {
       cartao_id: permiteCartao && f.cartao_id ? Number(f.cartao_id) : null,
       categoria_id: f.categoria_id ? Number(f.categoria_id) : null,
       observacao: f.observacao.trim() || null,
-      tipo_valor: variavel ? ('VARIAVEL' as const) : ('FIXA' as const),
-      valor_min: min,
-      valor_max: max,
-      fonte: f.fonte?.trim() || null,
     },
   }
 }

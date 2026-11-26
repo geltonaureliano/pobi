@@ -643,3 +643,38 @@ body { font-size: 13.5px; font-feature-settings: 'ss01'; }
 .composer-concluida { margin: 0 20px 20px; padding: 14px 16px; border-radius: 14px; background: var(--verde-fundo); color: var(--verde); display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
 .composer-concluida svg { width: 16px; height: 16px; flex: none; }
 .composer-concluida span { flex: 1; }
+
+/* ============ Receitas: visão por mês ============ */
+.mes-nav { display: inline-flex; gap: 4px; align-items: center; }
+.mes-nav .aba { min-width: 34px; height: 32px; }
+.mes-nav .aba.ativa, .mes-nav .aba:nth-child(2) { min-width: 96px; font-family: var(--fonte-dados); }
+.meses-barras { display: grid; grid-template-columns: repeat(12, 1fr); gap: 8px; align-items: end; }
+.mes-barra { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 4px 6px; border: 1px solid transparent; border-radius: 12px; background: none; color: var(--texto); transition: background .15s, border-color .15s, transform .15s var(--ease-saida); }
+.mes-barra:hover { background: var(--creme-2); transform: translateY(-2px); }
+.mes-barra.sel { background: var(--laranja-4); border-color: var(--laranja-2); }
+.mes-barra-valor { font-size: 10px; text-align: center; white-space: nowrap; overflow: hidden; color: var(--texto-2); }
+.mes-barra-valor .dinheiro-centavos { display: none; }
+.mes-barra-trilho { height: 86px; display: flex; align-items: flex-end; justify-content: center; }
+.mes-barra-trilho i { width: 60%; max-width: 30px; border-radius: 6px 6px 3px 3px; background: var(--laranja-3); transform-origin: bottom; animation: barra-sobe .6s var(--ease-saida) both; transition: height .4s var(--ease-saida), background .2s; }
+@keyframes barra-sobe { from { transform: scaleY(0); } }
+.mes-barra.sel .mes-barra-trilho i { background: var(--laranja); }
+.mes-barra.passado .mes-barra-trilho i { background: #e2dfd3; }
+.mes-barra.passado.sel .mes-barra-trilho i { background: var(--texto-2); }
+.mes-barra-rotulo { font-family: var(--fonte-dados); font-size: 10.5px; text-align: center; color: var(--texto-2); display: flex; flex-direction: column; line-height: 1.2; }
+.mes-barra-rotulo small { font-size: 9px; opacity: .7; }
+.mes-barra.hoje .mes-barra-rotulo { color: var(--texto); font-weight: 700; }
+.mes-barra.hoje .mes-barra-rotulo::after { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--laranja); margin: 3px auto 0; }
+.receita-nome { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.receita-nome strong { font-weight: 600; }
+.receita-nome .tag.ia { margin-left: 0; }
+.num-esq { font-family: var(--fonte-dados); font-size: 12px; white-space: nowrap; }
+.feriados { font-size: 10.5px; margin-top: 3px; color: #a6a399; }
+.fora-do-mes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+.chip-fora { display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border-radius: 9px; background: var(--creme-2); font-size: 12px; }
+.chip-fora small { color: var(--texto-2); font-size: 10.5px; }
+.chip-fora .botao-icone { height: 24px; min-width: 24px; }
+.previsao-horas { display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 12px; background: var(--laranja-4); }
+.previsao-linha { display: grid; grid-template-columns: 82px 1fr auto; gap: 10px; align-items: baseline; font-size: 12px; animation: linha-entra .3s var(--ease-saida) both; }
+.previsao-linha strong { font-family: var(--fonte-dados); font-size: 11px; }
+.previsao-linha span { color: #7a4d08; }
+.previsao-linha .dinheiro { font-weight: 600; }

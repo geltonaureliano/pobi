@@ -1,7 +1,13 @@
 # Receitas recorrentes
 
-- Cadastro do que se espera receber todo mês (salário, freelas fixos). Não é o mesmo que um lançamento: o lançamento confirma o recebimento.
+- Cadastro do que se espera receber (salário, freelas, renda por hora). O dinheiro que de fato entra é lançado em Lançamentos.
 - Ativa numa competência se a vigência (`inicio` até `fim`, ou sem fim) cruza aquele mês.
 - **Receita prevista** do mês = soma das receitas ativas. Sem dia de recebimento, assume-se o último dia do mês.
 - Uma receita pode ser **pausada** sem mexer na vigência; pausada, não entra na previsão.
-- **Registrar recebimento** cria um lançamento de receita pago na conta e categoria da receita, com o valor cadastrado (editável).
+- Receita é **o que se espera receber**: não há registro de recebimento aqui. A tela mostra a previsão mês a mês.
+- Regras de valor:
+  - **Fixa**: o mesmo valor todo mês.
+  - **Variável**: a média esperada, com faixa opcional (mínimo e máximo).
+  - **Por hora**: dias úteis do mês trabalhado × horas por dia × valor da hora, menos o desconto % (retenções/taxas entre o bruto e o que cai). O mês trabalhado é o do recebimento menos a defasagem (1 = paga no mês seguinte, como NF emitida no início do mês).
+- Dias úteis: segunda a sexta, sem feriados nacionais (inclui Sexta-feira Santa e Consciência Negra; Carnaval e Corpus Christi são pontos facultativos e não descontam).
+- **Ajuste do mês** (`receitas_mes`): troca os dias trabalhados ou fixa o valor só naquele mês; "voltar ao calculado" remove o ajuste.

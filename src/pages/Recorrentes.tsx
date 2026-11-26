@@ -1,60 +1,44 @@
 import { useState } from 'react'
-import { competenciaDe, dataNoMes, deslocarCompetencia, diasNoMes, hoje, rotuloCompetencia } from '../shared/data'
+import { competenciaDe, deslocarCompetencia, diasNoMes, hoje, rotuloCompetencia } from '../shared/data'
 import { validarRecorrente, type CamposRecorrente } from '../shared/recorrente'
-import { alternarReceita, atualizarReceita, criarReceita, excluirReceita } from '../domain/receita/repository'
-import { ativaNaCompetencia, totalPrevisto } from '../domain/receita/rules'
-import type { Receita } from '../domain/receita/model'
 import { alternarCustoFixo, atualizarCustoFixo, criarCustoFixo, excluirCustoFixo } from '../domain/custo-fixo/repository'
 import { lancamentosAGerar, situacaoDosCustos } from '../domain/custo-fixo/rules'
 import type { CustoFixo } from '../domain/custo-fixo/model'
-import { criarLancamento, importarLancamentos } from '../domain/lancamento/repository'
+import { importarLancamentos } from '../domain/lancamento/repository'
 
 import { Modal, BotaoExcluir } from '../ui/components/Modal'
-import { EscolhaCadastro } from '../ui/components/EscolhaCadastro'
-import { Assistente } from './assistente/Assistente'
-import { BotaoConversas, HistoricoConversas } from './assistente/Historico'
-import type { ConversaIA } from '../domain/assistente/model'
-import { buscarConversa } from '../domain/assistente/repository'
-import { CamposReceitaForm } from './assistente/formularios'
 import { Campo, Vazio, Texto, Data, Moeda, Selecao } from '../ui/components/Campos'
 import { useForm } from '../ui/useForm'
 import { Dinheiro } from '../ui/components/Dinheiro'
 import type { Dados } from '../ui/useDados'
 
-type Item = Receita | CustoFixo
+type Item = CustoFixo
 const reais = (c: number) => (c / 100).toFixed(2).replace('.', ',')
-const vazio = (): CamposRecorrente => ({ nome: '', valor: '', dia: '', inicio: `${competenciaDe(hoje())}-01`, fim: '', conta_id: '', cartao_id: '', categoria_id: '', observacao: '', tipo_valor: 'FIXA', valor_min: '', valor_max: '', fonte: '' })
+const vazio = (): CamposRecorrente => ({ nome: '', valor: '', dia: '', inicio: `${competenciaDe(hoje())}-01`, fim: '', conta_id: '', cartao_id: '', categoria_id: '', observacao: '' })
 
-/** Formulário compartilhado por receitas e custos fixos. */
-function useRecorrente(tipo: 'receita' | 'custo', dados: Dados, recarregar: () => void) {
+/** Formulário de custo fixo. */
+function useRecorrente(dados: Dados, recarregar: () => void) {
   const [editando, setEditando] = useState<number | 'novo' | null>(null)
   const form = useForm<CamposRecorrente>(vazio())
   function abrir(i?: Item) {
     form.reiniciar(i ? {
-      nome: i.nome, valor: reais(i.valor), dia: String(('dia_recebimento' in i ? i.dia_recebimento : i.dia_vencimento) ?? ''),
-      inicio: i.inicio, fim: i.fim ?? '', conta_id: i.conta_id ? String(i.conta_id) : '', cartao_id: 'cartao_id' in i && i.cartao_id ? String(i.cartao_id) : '',
+      nome: i.nome, valor: reais(i.valor), dia: String(i.dia_vencimento ?? ''),
+      inicio: i.inicio, fim: i.fim ?? '', conta_id: i.conta_id ? String(i.conta_id) : '', cartao_id: i.cartao_id ? String(i.cartao_id) : '',
       categoria_id: i.categoria_id ? String(i.categoria_id) : '', observacao: i.observacao ?? '',
-      ...('tipo_valor' in i ? { tipo_valor: i.tipo_valor ?? 'FIXA', valor_min: i.valor_min ? reais(i.valor_min) : '', valor_max: i.valor_max ? reais(i.valor_max) : '', fonte: i.fonte ?? '' } : {}),
     } : { ...vazio(), conta_id: String(dados.contas.find((x) => x.principal)?.id ?? '') })
     setEditando(i ? i.id : 'novo')
   }
   async function salvar() {
-    const r = validarRecorrente(form.valores, tipo === 'custo')
+    const r = validarRecorrente(form.valores, true)
     if (!r.ok) return form.setErros(r.erros)
     const v = r.valor
-    if (tipo === 'receita') {
-      const d = { nome: v.nome, valor: v.valor, dia_recebimento: v.dia, inicio: v.inicio, fim: v.fim, conta_id: v.conta_id, categoria_id: v.categoria_id, observacao: v.observacao, tipo_valor: v.tipo_valor, valor_min: v.valor_min, valor_max: v.valor_max, fonte: v.fonte }
-      if (editando === 'novo') await criarReceita(d); else if (editando != null) await atualizarReceita(editando, d)
-    } else {
-      const d = { nome: v.nome, valor: v.valor, dia_vencimento: v.dia, inicio: v.inicio, fim: v.fim, conta_id: v.conta_id, cartao_id: v.cartao_id, categoria_id: v.categoria_id, observacao: v.observacao }
-      if (editando === 'novo') await criarCustoFixo(d); else if (editando != null) await atualizarCustoFixo(editando, d)
-    }
+    const d = { nome: v.nome, valor: v.valor, dia_vencimento: v.dia, inicio: v.inicio, fim: v.fim, conta_id: v.conta_id, cartao_id: v.cartao_id, categoria_id: v.categoria_id, observacao: v.observacao }
+    if (editando === 'novo') await criarCustoFixo(d); else if (editando != null) await atualizarCustoFixo(editando, d)
     setEditando(null); recarregar()
   }
-  const cats = dados.categorias.filter((k) => k.tipo === (tipo === 'receita' ? 'RECEITA' : 'DESPESA'))
+  const cats = dados.categorias.filter((k) => k.tipo === 'DESPESA')
   const modal = (
-    <Modal titulo={`${editando === 'novo' ? 'Nova' : 'Editar'} ${tipo === 'receita' ? 'receita' : 'custo fixo'}`} aberto={editando != null} fechar={() => setEditando(null)} largura={tipo === 'receita' ? 660 : 620} rodape={<button className="botao" onClick={salvar}>Salvar</button>}>
-      {tipo === 'receita' ? <CamposReceitaForm f={form} foco categorias={dados.categorias} contas={dados.contas.filter((x) => !x.arquivada)} /> : <>
+    <Modal titulo={`${editando === 'novo' ? 'Nova' : 'Editar'} custo fixo`} aberto={editando != null} fechar={() => setEditando(null)} largura={620} rodape={<button className="botao" onClick={salvar}>Salvar</button>}>
       <Campo rotulo="Nome" erro={form.erros.nome} largo><Texto autoFocus placeholder="Aluguel, internet, academia…" {...form.campo('nome')} /></Campo>
       <Campo rotulo="Valor mensal" erro={form.erros.valor}><Moeda {...form.campo('valor')} /></Campo>
       <Campo rotulo="Dia do vencimento" erro={form.erros.dia}><Texto placeholder="opcional" numerico maxLength={2} {...form.campo('dia')} /></Campo>
@@ -62,9 +46,8 @@ function useRecorrente(tipo: 'receita' | 'custo', dados: Dados, recarregar: () =
       <Campo rotulo="Fim (vazio = sem fim)" erro={form.erros.fim}><Data {...form.campo('fim')} /></Campo>
       <Campo rotulo="Categoria"><Selecao {...form.campo('categoria_id')} itens={cats} /></Campo>
       <Campo rotulo="Conta"><Selecao {...form.campo('conta_id')} itens={dados.contas.filter((x) => !x.arquivada)} /></Campo>
-      {tipo === 'custo' && <Campo rotulo="Ou cartão" erro={form.erros.cartao_id}><Selecao {...form.campo('cartao_id')} itens={dados.cartoes.filter((x) => !x.arquivado)} /></Campo>}
+      {<Campo rotulo="Ou cartão" erro={form.erros.cartao_id}><Selecao {...form.campo('cartao_id')} itens={dados.cartoes.filter((x) => !x.arquivado)} /></Campo>}
       <Campo rotulo="Observação" largo><Texto {...form.campo('observacao')} /></Campo>
-      </>}
     </Modal>
   )
   return { abrir, modal }
@@ -72,90 +55,10 @@ function useRecorrente(tipo: 'receita' | 'custo', dados: Dados, recarregar: () =
 
 const vigencia = (i: Item) => `${i.inicio.split('-').reverse().join('/')}${i.fim ? ` até ${i.fim.split('-').reverse().join('/')}` : ' · sem fim'}`
 
-export function Receitas({ dados, recarregar }: { dados: Dados; recarregar: () => void }) {
-  const c = competenciaDe(hoje())
-  const { abrir, modal } = useRecorrente('receita', dados, recarregar)
-  const [escolhendo, setEscolhendo] = useState(false)
-  const [conversa, setConversa] = useState<ConversaIA | 'nova' | null>(null)
-  const [historico, setHistorico] = useState(false)
-  const [aviso, setAviso] = useState<string | null>(null)
-  const prevista = totalPrevisto(dados.receitas, c)
-  const recebido = dados.lancamentos.filter((l) => l.tipo === 'RECEITA' && l.status === 'PAGO' && competenciaDe(l.data) === c).reduce((s, l) => s + l.valor, 0)
-  const recebidaNoMes = (r: Receita) => dados.lancamentos.some((l) => l.id_externo === `receita:${r.id}:${c}`)
-
-  async function registrar(r: Receita) {
-    await criarLancamento({
-      descricao: r.nome, valor: r.valor, tipo: 'RECEITA', status: 'PAGO', data: r.dia_recebimento ? dataNoMes(c, r.dia_recebimento) : hoje(),
-      conta_id: r.conta_id ?? dados.contas.find((x) => x.principal)?.id ?? null, conta_destino_id: null, cartao_id: null,
-      categoria_id: r.categoria_id, observacao: null, origem: 'RECORRENTE', id_externo: `receita:${r.id}:${c}`,
-    })
-    recarregar()
-  }
-
-  if (conversa) {
-    const c = conversa === 'nova' ? null : conversa
-    return <Assistente key={c?.id ?? 'nova'} alvo="receita" dados={dados} conversa={c} trocar={(x) => setConversa(x ?? 'nova')}
-      voltar={() => setConversa(null)} concluir={(msg) => { setConversa(null); setAviso(msg); recarregar() }} />
-  }
-
-  return (
-    <>
-      <div className="topo">
-        <h1>Receitas</h1>
-        <div className="acoes">
-          <BotaoConversas alvo="receita" onClick={() => setHistorico(true)} />
-          <button className="botao" onClick={() => setEscolhendo(true)}>Nova receita</button>
-        </div>
-      </div>
-      <HistoricoConversas alvo="receita" aberto={historico} fechar={() => setHistorico(false)} nova={() => setConversa('nova')}
-        abrir={async (id) => { const c = await buscarConversa(id); if (c) setConversa(c) }} />
-      {aviso && <div className="secao"><div className="aviso sucesso">{aviso}</div></div>}
-      <EscolhaCadastro aberto={escolhendo} fechar={() => setEscolhendo(false)} titulo="Nova receita" item="da receita"
-        manual={() => { setEscolhendo(false); abrir() }} ia={() => { setEscolhendo(false); setConversa('nova') }} />
-      <div className="cards" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-        <div className="card"><h3>Prevista em {rotuloCompetencia(c)}</h3><div className="valor"><Dinheiro valor={prevista} animar /></div></div>
-        <div className="card"><h3>Recebido no mês</h3><div className="valor pos"><Dinheiro valor={recebido} animar tom="pos" /></div></div>
-        <div className="card"><h3>Fontes ativas</h3><div className="valor">{dados.receitas.filter((r) => r.ativa && ativaNaCompetencia(r, c)).length}</div></div>
-      </div>
-      <div className="secao">
-        {dados.receitas.length ? (
-          <table className="tabela">
-            <thead><tr><th>Receita</th><th>Vigência</th><th>Dia</th><th>Categoria</th><th style={{ textAlign: 'right' }}>Valor</th><th /></tr></thead>
-            <tbody>
-              {dados.receitas.map((r) => (
-                <tr key={r.id} style={{ opacity: r.ativa ? 1 : 0.5 }}>
-                  <td>
-                    {r.nome} {r.tipo_valor === 'VARIAVEL' && <span className="tag laranja">variável</span>} {r.origem === 'IA' && <span className="tag ia">IA</span>} {!r.ativa && <span className="tag">pausada</span>} {recebidaNoMes(r) && <span className="tag bom">recebida</span>}
-                    {r.fonte && <div className="sutil">{r.fonte}</div>}
-                  </td>
-                  <td className="sutil">{vigencia(r)}</td>
-                  <td className="sutil">{r.dia_recebimento ?? '—'}</td>
-                  <td className="sutil">{dados.categorias.find((k) => k.id === r.categoria_id)?.nome ?? '—'}</td>
-                  <td className="num pos">
-                    <Dinheiro valor={r.valor} tom="pos" />
-                    {r.tipo_valor === 'VARIAVEL' && (r.valor_min || r.valor_max) ? <div className="sutil faixa-tabela">{r.valor_min ? <Dinheiro valor={r.valor_min} tom="neutro" /> : '—'} a {r.valor_max ? <Dinheiro valor={r.valor_max} tom="neutro" /> : '—'}</div> : null}
-                  </td>
-                  <td><div className="acoes">
-                    {r.ativa && ativaNaCompetencia(r, c) && !recebidaNoMes(r) && <button className="aba ativa" onClick={() => registrar(r)}>registrar recebimento</button>}
-                    <button className="aba" onClick={async () => { await alternarReceita(r.id, !r.ativa); recarregar() }}>{r.ativa ? 'pausar' : 'reativar'}</button>
-                    <button className="aba" onClick={() => abrir(r)}>editar</button>
-                    <BotaoExcluir onConfirmar={async () => { await excluirReceita(r.id); recarregar() }} />
-                  </div></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : <Vazio>Cadastre suas fontes de renda (salário, freelas fixos) para o app prever o mês.</Vazio>}
-      </div>
-      {modal}
-    </>
-  )
-}
-
 export function CustosFixos({ dados, recarregar }: { dados: Dados; recarregar: () => void }) {
   const [c, setC] = useState(competenciaDe(hoje()))
   const [gerando, setGerando] = useState(false)
-  const { abrir, modal } = useRecorrente('custo', dados, recarregar)
+  const { abrir, modal } = useRecorrente(dados, recarregar)
   const situacoes = situacaoDosCustos(dados.custosFixos, dados.lancamentos, c)
   const sit = new Map(situacoes.map((s) => [s.custo.id, s.situacao]))
   const aGerar = lancamentosAGerar(dados.custosFixos, dados.lancamentos, c)

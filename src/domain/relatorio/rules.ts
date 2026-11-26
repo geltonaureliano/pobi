@@ -7,7 +7,7 @@ import type { Parcela } from '../divida/model'
 import { parcelasAtrasadas, saldoDevedor } from '../divida/rules'
 import type { LancamentoDetalhado } from '../lancamento/model'
 import { confirmado, despesaPorCategoria, totaisDaCompetencia } from '../lancamento/rules'
-import type { Receita } from '../receita/model'
+import type { AjusteReceitaMes, Receita } from '../receita/model'
 import { totalPrevisto } from '../receita/rules'
 import type { Categoria } from '../categoria/model'
 
@@ -54,6 +54,7 @@ export interface EntradaRelatorio {
   contas: ContaComSaldo[]
   categorias: Categoria[]
   receitas: Receita[]
+  receitasMes?: AjusteReceitaMes[]
   custosFixos: CustoFixo[]
   parcelas: Parcela[]
 }
@@ -61,7 +62,7 @@ export interface EntradaRelatorio {
 export function relatorioMensal(e: EntradaRelatorio): RelatorioMensal {
   const c = e.competencia
   const t = totaisDaCompetencia(e.lancamentos, c)
-  const prevista = totalPrevisto(e.receitas, c)
+  const prevista = totalPrevisto(e.receitas, c, e.receitasMes)
   const rendaBase = Math.max(t.receitas, prevista)
   const custos = situacaoDosCustos(e.custosFixos, e.lancamentos, c).reduce((s, x) => s + x.custo.valor, 0)
   const parcelasDoMes = e.parcelas.filter((p) => p.vencimento.startsWith(c)).reduce((s, p) => s + p.valor, 0)

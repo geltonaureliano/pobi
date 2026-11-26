@@ -2,7 +2,7 @@ import { centavosParaTexto, pctParaTexto } from '../../shared/dinheiro'
 import { dataValida, type DataISO } from '../../shared/data'
 import type { CamposDivida } from '../divida/form'
 import { SISTEMAS, TIPOS_DIVIDA } from '../divida/model'
-import type { CamposRecorrente } from '../../shared/recorrente'
+import type { CamposReceita } from '../receita/form'
 import type { AlvoAssistente, Confianca, MensagemChat, RespostaAssistente } from './model'
 
 /* ------------------------------------------------------------------ */
@@ -30,10 +30,16 @@ const CAMPOS: Record<AlvoAssistente, string> = {
   receita: `{
   "nome": string,                 // ex.: "Salário", "Freela Studio X"
   "fonte": string,                // quem paga
-  "tipo_valor": "FIXA" | "VARIAVEL",
-  "valor": number,                // valor mensal (se variável, a média esperada), em reais
-  "valor_min": number,            // se variável: menor valor típico
-  "valor_max": number,            // se variável: maior valor típico
+  "regra": "FIXA" | "VARIAVEL" | "HORAS",
+  // FIXA: mesmo valor todo mês. VARIAVEL: muda de mês a mês, informe média e faixa.
+  // HORAS: paga por hora trabalhada; o app calcula cada mês = dias úteis do mês trabalhado × horas/dia × valor da hora − desconto %.
+  "valor": number,                // FIXA: o valor; VARIAVEL: a média; HORAS: um mês típico (referência), em reais
+  "valor_min": number,            // VARIAVEL: menor valor típico
+  "valor_max": number,            // VARIAVEL: maior valor típico
+  "valor_hora": number,           // HORAS: valor bruto da hora, em reais
+  "horas_dia": number,            // HORAS: horas por dia útil (ex.: 8)
+  "desconto_pct": number,         // HORAS: % que some entre o bruto e o que cai (retenções, taxas), ex.: 6.15
+  "defasagem_meses": number,      // HORAS: 1 se o pagamento de um mês é pelo trabalho do mês anterior; 0 se do próprio mês
   "dia_recebimento": number,      // 1 a 31
   "inicio": "AAAA-MM-DD",
   "fim": "AAAA-MM-DD",            // só se tiver data para acabar
@@ -157,21 +163,27 @@ export function aplicarNaDivida(f: CamposDivida, r: Record<string, unknown>): Ca
   return novo
 }
 
-export function aplicarNaReceita(f: CamposRecorrente, r: Record<string, unknown>): CamposRecorrente {
+export function aplicarNaReceita(f: CamposReceita, r: Record<string, unknown>): CamposReceita {
   const novo = { ...f }
-  const set = <K extends keyof CamposRecorrente>(k: K, v: CamposRecorrente[K] | null) => { if (v != null) novo[k] = v }
+  const set = <K extends keyof CamposReceita>(k: K, v: CamposReceita[K] | null) => { if (v != null) novo[k] = v }
   set('nome', str(r.nome))
   set('fonte', str(r.fonte))
-  set('tipo_valor', umDe(r.tipo_valor, ['FIXA', 'VARIAVEL']) as 'FIXA' | 'VARIAVEL' | null)
+  set('regra', (umDe(r.regra, ['FIXA', 'VARIAVEL', 'HORAS']) ?? umDe(r.tipo_valor, ['FIXA', 'VARIAVEL'])) as CamposReceita['regra'] | null)
   set('valor', reais(r.valor))
   set('valor_min', reais(r.valor_min))
   set('valor_max', reais(r.valor_max))
+  set('valor_hora', reais(r.valor_hora))
+  set('horas_dia', pct(r.horas_dia))
+  set('desconto_pct', pct(r.desconto_pct))
+  const def = num(r.defasagem_meses)
+  if (def != null && def >= 0 && def <= 3) novo.defasagem = String(Math.round(def))
   const dia = num(r.dia_recebimento)
   if (dia != null && dia >= 1 && dia <= 31) novo.dia = String(Math.round(dia))
   set('inicio', data(r.inicio))
   set('fim', data(r.fim))
   set('observacao', str(r.observacao))
-  if (novo.valor_min || novo.valor_max) novo.tipo_valor ??= 'VARIAVEL'
+  if (novo.valor_hora && r.regra == null) novo.regra = 'HORAS'
+  else if ((novo.valor_min || novo.valor_max) && novo.regra === 'FIXA' && r.regra == null) novo.regra = 'VARIAVEL'
   return novo
 }
 

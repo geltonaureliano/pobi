@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
-import { hoje, competenciaDe } from '../../shared/data'
+import { hoje, competenciaDe, deslocarCompetencia } from '../../shared/data'
 import { paraCentavos } from '../../shared/dinheiro'
 import type { Motor } from '../../domain/analise/model'
 import { comMotorDisponivel, lerAjuste, motoresDisponiveis, NOME_MOTOR, salvarAjuste, type MotorDisponivel } from '../../domain/analise/repository'
@@ -9,7 +9,9 @@ import { buscarConversa, executarAssistente, lerArquivo, salvarConversa } from '
 import { camposDividaVazios, totalDoFormulario, validarDivida, type CamposDivida } from '../../domain/divida/form'
 import { criarDivida } from '../../domain/divida/repository'
 import { criarReceita } from '../../domain/receita/repository'
-import { validarRecorrente, type CamposRecorrente } from '../../shared/recorrente'
+import { receitaVazia, validarReceita, type CamposReceita } from '../../domain/receita/form'
+import { previsaoDaReceita } from '../../domain/receita/rules'
+import { parametrosPorHora } from '../../domain/receita/form'
 import { emTauri } from '../../db/client'
 import { useForm } from '../../ui/useForm'
 import { Dinheiro } from '../../ui/components/Dinheiro'
@@ -42,15 +44,10 @@ const SUGESTOES: Record<AlvoAssistente, string[]> = {
 const ETAPAS_ARQUIVO = ['Lendo os arquivos…', 'Entendendo o documento…', 'Extraindo valores e datas…', 'Conferindo os cálculos…', 'Montando o resumo…']
 const ETAPAS_TEXTO = ['Entendendo o que você escreveu…', 'Organizando os dados…', 'Montando o resumo…']
 
-const receitaVazia = (conta_id: string): CamposRecorrente => ({
-  nome: '', valor: '', dia: '', inicio: `${competenciaDe(hoje())}-01`, fim: '', conta_id, cartao_id: '', categoria_id: '', observacao: '',
-  tipo_valor: 'FIXA', valor_min: '', valor_max: '', fonte: '',
-})
-
 const ROTULOS: Record<string, string> = {
   nome: 'nome', tipo: 'tipo', credor: 'credor', contratado: 'valor contratado', valor_parcela: 'parcela', total: 'total', parcelas: 'nº de parcelas',
   parcelas_pagas: 'parcelas pagas', primeiro: '1º vencimento', data_contratacao: 'data do contrato', taxa: 'juros a.m.', taxa_anual: 'juros a.a.',
-  cet: 'CET', sistema: 'sistema', observacao: 'observações', fonte: 'fonte', tipo_valor: 'fixo/variável', valor: 'valor', valor_min: 'mínimo',
+  cet: 'CET', sistema: 'sistema', observacao: 'observações', fonte: 'fonte', regra: 'regra', valor_hora: 'valor da hora', horas_dia: 'horas/dia', desconto_pct: 'desconto', defasagem: 'mês de referência', valor: 'valor', valor_min: 'mínimo',
   valor_max: 'máximo', dia: 'dia', inicio: 'início', fim: 'fim',
 }
 
@@ -71,7 +68,7 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar }: 
   const catDividas = dados.categorias.find((k) => k.nome === 'Dívidas')?.id
   const camposIniciais = useRef(conversa?.campos)
   const fd = useForm<CamposDivida>({ ...camposDividaVazios(catDividas ? String(catDividas) : ''), primeiro: '', ...(alvo === 'divida' ? camposIniciais.current as Partial<CamposDivida> : {}) })
-  const fr = useForm<CamposRecorrente>({ ...receitaVazia(principal), ...(alvo === 'receita' ? camposIniciais.current as Partial<CamposRecorrente> : {}) })
+  const fr = useForm<CamposReceita>({ ...receitaVazia(principal), ...(alvo === 'receita' ? camposIniciais.current as Partial<CamposReceita> : {}) })
   const idConversa = useRef(conversa?.id ?? crypto.randomUUID())
   const concluida = conversa?.status === 'CONCLUIDA'
   const [historicoAberto, setHistoricoAberto] = useState(false)
@@ -243,10 +240,10 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar }: 
         await marcarConcluida(r.nova.nome, id ?? null)
         concluir(`${r.nova.nome} cadastrada com ${r.nova.parcelas} parcelas.`)
       } else {
-        const r = validarRecorrente(fr.valores, false)
+        const r = validarReceita(fr.valores)
         if (!r.ok) { fr.setErros(r.erros); rolarAteErro(); return }
         const v = r.valor
-        const id = await criarReceita({ nome: v.nome, valor: v.valor, dia_recebimento: v.dia, inicio: v.inicio, fim: v.fim, conta_id: v.conta_id, categoria_id: v.categoria_id, observacao: v.observacao, tipo_valor: v.tipo_valor, valor_min: v.valor_min, valor_max: v.valor_max, fonte: v.fonte, origem: 'IA' })
+        const id = await criarReceita({ ...v, origem: 'IA' })
         await marcarConcluida(v.nome, id ?? null)
         concluir(`${v.nome} cadastrada.`)
       }
@@ -272,9 +269,21 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar }: 
     const valor = paraCentavos(v.valor)
     const min = paraCentavos(v.valor_min ?? ''), max = paraCentavos(v.valor_max ?? '')
     return [
-      { rotulo: v.tipo_valor === 'VARIAVEL' ? 'Média por mês' : 'Por mês', valor: valor ? <Dinheiro valor={valor} /> : null, sub: v.dia ? `dia ${v.dia}` : null },
-      { rotulo: 'Faixa', valor: v.tipo_valor === 'VARIAVEL' && (min || max) ? <span className="faixa">{min ? <Dinheiro valor={min} /> : '—'} a {max ? <Dinheiro valor={max} /> : '—'}</span> : null, sub: v.tipo_valor === 'VARIAVEL' ? 'variável' : 'fixa' },
+      ...(v.regra === 'HORAS' ? (() => {
+        const ph = parametrosPorHora(v)
+        const c0 = competenciaDe(hoje())
+        const p = (i: number) => ph ? previsaoDaReceita({ valor: 1, inicio: '0000-01-01', fim: null, regra: 'HORAS', ...ph }, deslocarCompetencia(c0, i)) : null
+        const a = p(0), b = p(1)
+        return [
+          { rotulo: 'Este mês', valor: a ? <Dinheiro valor={a.valor} /> : null, sub: a ? `${a.horas!.dias} dias úteis` : null },
+          { rotulo: 'Próximo mês', valor: b ? <Dinheiro valor={b.valor} /> : null, sub: b ? `${b.horas!.dias} dias úteis` : null },
+          { rotulo: 'Valor da hora', valor: ph ? <Dinheiro valor={ph.valor_hora} /> : null, sub: ph ? `${v.horas_dia}h/dia` : null },
+        ]
+      })() : [
+      { rotulo: v.regra === 'VARIAVEL' ? 'Média por mês' : 'Por mês', valor: valor ? <Dinheiro valor={valor} /> : null, sub: v.dia ? `dia ${v.dia}` : null },
+      { rotulo: 'Faixa', valor: v.regra === 'VARIAVEL' && (min || max) ? <span className="faixa">{min ? <Dinheiro valor={min} /> : '—'} a {max ? <Dinheiro valor={max} /> : '—'}</span> : null, sub: v.regra === 'VARIAVEL' ? 'variável' : 'fixa' },
       { rotulo: 'Por ano', valor: valor ? <Dinheiro valor={valor * 12} /> : null, sub: null },
+    ]),
     ]
   }, [alvo, fd.valores, fr.valores])
 
