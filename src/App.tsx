@@ -6,23 +6,23 @@ import { Perfil } from './ui/components/Perfil'
 import { Painel } from './pages/Painel'
 import { Lancamentos } from './pages/Lancamentos'
 import { Contas } from './pages/Contas'
+import { Cartoes } from './pages/Cartoes'
 import { Receitas, CustosFixos } from './pages/Recorrentes'
 import { Dividas } from './pages/Dividas'
-import { Orcamentos } from './pages/Orcamentos'
 import { Categorias } from './pages/Categorias'
 import { Relatorio } from './pages/Relatorio'
 import { Anual } from './pages/Anual'
 import { Analises } from './pages/Analises'
 import { Ajustes } from './pages/Ajustes'
 
-type Pagina = keyof typeof Icones & string
+type Pagina = Exclude<keyof typeof Icones & string, 'orcamentos'>
 const MENU: { grupo: string; itens: { id: Exclude<Pagina, 'logo'>; rotulo: string }[] }[] = [
-  { grupo: 'Principal', itens: [{ id: 'painel', rotulo: 'Painel' }, { id: 'lancamentos', rotulo: 'Lançamentos' }] },
-  { grupo: 'Análise', itens: [{ id: 'relatorio', rotulo: 'Relatório mensal' }, { id: 'anual', rotulo: 'Análise anual' }, { id: 'analises', rotulo: 'Radar IA' }] },
+  { grupo: 'Principal', itens: [{ id: 'painel', rotulo: 'Dashboard' }, { id: 'lancamentos', rotulo: 'Lançamentos' }] },
   { grupo: 'Cadastros', itens: [
-    { id: 'contas', rotulo: 'Contas e cartões' }, { id: 'receitas', rotulo: 'Receitas' }, { id: 'custos', rotulo: 'Custos fixos' },
-    { id: 'dividas', rotulo: 'Dívidas' }, { id: 'orcamentos', rotulo: 'Orçamentos' }, { id: 'categorias', rotulo: 'Categorias' },
+    { id: 'contas', rotulo: 'Contas' }, { id: 'cartoes', rotulo: 'Cartões' }, { id: 'receitas', rotulo: 'Receitas' },
+    { id: 'custos', rotulo: 'Custos fixos' }, { id: 'dividas', rotulo: 'Dívidas' }, { id: 'categorias', rotulo: 'Categorias' },
   ] },
+  { grupo: 'Análise', itens: [{ id: 'relatorio', rotulo: 'Relatório mensal' }, { id: 'anual', rotulo: 'Análise anual' }, { id: 'analises', rotulo: 'Radar IA' }] },
   { grupo: 'Sistema', itens: [{ id: 'ajustes', rotulo: 'Ajustes' }] },
 ]
 
@@ -40,10 +40,10 @@ export default function App() {
       anual: <Anual dados={dados} />,
       analises: <Analises dados={dados} />,
       contas: <Contas {...p} />,
+      cartoes: <Cartoes {...p} />,
       receitas: <Receitas {...p} />,
       custos: <CustosFixos {...p} />,
       dividas: <Dividas {...p} />,
-      orcamentos: <Orcamentos dados={dados} />,
       categorias: <Categorias {...p} />,
       ajustes: <Ajustes />,
     }[pagina]

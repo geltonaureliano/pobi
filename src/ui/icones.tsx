@@ -3,6 +3,7 @@ export const Icones = {
   painel: () => (<svg viewBox="0 0 16 16"><rect x="1" y="1" width="6" height="6" rx="1.5" {...p} /><rect x="9" y="1" width="6" height="6" rx="1.5" {...p} /><rect x="1" y="9" width="6" height="6" rx="1.5" {...p} /><rect x="9" y="9" width="6" height="6" rx="1.5" {...p} /></svg>),
   lancamentos: () => (<svg viewBox="0 0 16 16"><rect x="1" y="2" width="14" height="2.5" rx="1" {...p} /><rect x="1" y="6.75" width="14" height="2.5" rx="1" {...p} /><rect x="1" y="11.5" width="9" height="2.5" rx="1" {...p} /></svg>),
   contas: () => (<svg viewBox="0 0 16 16"><path d="M8 1 15 4.5V6H1V4.5Z" {...p} /><rect x="2.5" y="7" width="2" height="5" {...p} /><rect x="7" y="7" width="2" height="5" {...p} /><rect x="11.5" y="7" width="2" height="5" {...p} /><rect x="1" y="13" width="14" height="2" rx=".5" {...p} /></svg>),
+  cartoes: () => (<svg viewBox="0 0 16 16"><rect x="1" y="3" width="14" height="10" rx="2" {...p} /><rect x="3" y="9.5" width="4" height="1.5" rx=".5" fill="#1c1c1c" /></svg>),
   dividas: () => (<svg viewBox="0 0 16 16"><rect x="1" y="3" width="14" height="10" rx="2" {...p} /><rect x="1" y="5.5" width="14" height="2" fill="#1c1c1c" /></svg>),
   orcamentos: () => (<svg viewBox="0 0 16 16"><rect x="1" y="9" width="3.5" height="6" rx="1" {...p} /><rect x="6.25" y="5" width="3.5" height="10" rx="1" {...p} /><rect x="11.5" y="1" width="3.5" height="14" rx="1" {...p} /></svg>),
   analises: () => (<svg viewBox="0 0 16 16"><path d="M8 0l1.8 5.2L15 7l-5.2 1.8L8 14l-1.8-5.2L1 7l5.2-1.8Z" {...p} /></svg>),

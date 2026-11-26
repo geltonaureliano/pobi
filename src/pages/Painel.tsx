@@ -1,12 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { formatarBRL, formatarPct } from '../shared/dinheiro'
-import { competenciaDe, deslocarCompetencia, diasNoMes, hoje, rotuloCompetencia } from '../shared/data'
+import { competenciaDe, deslocarCompetencia, hoje, rotuloCompetencia } from '../shared/data'
 import { saldoTotal } from '../domain/conta/rules'
 import { despesaPorCategoria } from '../domain/lancamento/rules'
 import { heatmapDeGastos, metricasDoMes } from '../domain/painel/rules'
-import { listarOrcamentos } from '../domain/orcamento/repository'
-import { progressoDosOrcamentos, ritmoEsperado } from '../domain/orcamento/rules'
-import type { Orcamento } from '../domain/orcamento/model'
 import { MetricCard } from '../ui/components/MetricCard'
 import { Heatmap } from '../ui/components/Heatmap'
 import { Barra } from '../ui/components/Barra'
@@ -17,8 +14,6 @@ const JANELAS = { '3M': 3, '6M': 6, '9M': 9 } as const
 export function Painel({ dados, ir }: { dados: Dados; ir: (p: 'relatorio' | 'anual' | 'lancamentos') => void }) {
   const c = competenciaDe(hoje())
   const [janela, setJanela] = useState<keyof typeof JANELAS>('9M')
-  const [orcamentos, setOrcamentos] = useState<(Orcamento & { categoria_nome: string })[]>([])
-  useEffect(() => { listarOrcamentos(c).then(setOrcamentos) }, [c])
 
   const m = useMemo(() => metricasDoMes(dados.lancamentos, c), [dados, c])
   const heat = useMemo(
@@ -26,8 +21,8 @@ export function Painel({ dados, ir }: { dados: Dados; ir: (p: 'relatorio' | 'anu
     [dados, c, janela],
   )
   const categorias = useMemo(() => despesaPorCategoria(dados.lancamentos, c), [dados, c])
-  const progresso = progressoDosOrcamentos(orcamentos, categorias, c)
-  const ritmo = ritmoEsperado(Number(hoje().slice(8)), diasNoMes(c))
+  const contas = dados.contas.filter((x) => !x.arquivada).sort((a, b) => b.saldo - a.saldo)
+  const positivo = contas.reduce((s, x) => s + Math.max(x.saldo, 0), 0)
 
   // Despesa subir é ruim; receita subir é bom.
   const badge = (v: number | null, inverso = false) =>
@@ -39,7 +34,7 @@ export function Painel({ dados, ir }: { dados: Dados; ir: (p: 'relatorio' | 'anu
   return (
     <>
       <div className="topo">
-        <h1>Painel · {rotuloCompetencia(c)}</h1>
+        <h1>Dashboard · {rotuloCompetencia(c)}</h1>
         <div className="acoes">
           <button className="botao secundario" onClick={() => ir('relatorio')}>Relatório mensal</button>
           <button className="botao secundario" onClick={() => ir('anual')}>Análise anual</button>
@@ -71,19 +66,10 @@ export function Painel({ dados, ir }: { dados: Dados; ir: (p: 'relatorio' | 'anu
 
       <div className="dupla">
         <div className="secao">
-          <div className="secao-topo">
-            <h3>Orçamentos</h3>
-            <span className="sutil">ritmo esperado {formatarPct(ritmo)}</span>
-          </div>
-          {progresso.length === 0 && <p className="sutil">Nenhum orçamento para este mês.</p>}
-          {progresso.map((p) => (
-            <Barra
-              key={p.orcamento.id}
-              rotulo={`${p.orcamento.categoria_nome} · ${formatarBRL(p.gasto)}`}
-              direita={p.estourado ? `estourou ${formatarBRL(-p.restante)}` : `${formatarPct(p.usado)} usado`}
-              fracao={p.usado}
-              estourada={p.estourado}
-            />
+          <div className="secao-topo"><h3>Saldo por conta</h3><span className="sutil">{formatarBRL(saldoTotal(dados.contas))}</span></div>
+          {contas.length === 0 && <p className="sutil">Nenhuma conta cadastrada.</p>}
+          {contas.map((x) => (
+            <Barra key={x.id} rotulo={x.nome} direita={formatarBRL(x.saldo)} fracao={positivo ? Math.max(x.saldo, 0) / positivo : 0} estourada={x.saldo < 0} />
           ))}
         </div>
         <div className="secao">
