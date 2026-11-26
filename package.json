@@ -1,7 +1,7 @@
 {
   "name": "pobi",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "tauri": "tauri",
-    "app": "tauri dev"
+    "app": "tauri dev",
+    "install-app": "bash scripts/install-app.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.5",

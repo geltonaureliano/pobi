@@ -12,7 +12,10 @@ npm run app        # abre o app desktop (Tauri) com o banco real
 npm run dev        # só a interface no navegador, com banco em memória e dados de exemplo
 npm test           # testes das regras de negócio
 npm run tauri build  # gera o .app / .dmg
+npm run install-app  # gera o build, instala em /Applications/Pobi.app e fixa no Dock
 ```
+
+Depois de qualquer mudança, rode `npm run install-app` para atualizar o Pobi do Dock. O script puxa a main (se não houver mudanças locais), gera o build, fecha o app aberto, troca o `/Applications/Pobi.app` e abre de novo. Os dados ficam no banco e não são apagados.
 
 O banco fica em `~/Library/Application Support/com.gelton.pobi/financas.db`.
 
