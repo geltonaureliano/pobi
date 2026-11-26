@@ -4,7 +4,7 @@ import { paraCentavos } from '../../shared/dinheiro'
 import type { Motor } from '../../domain/analise/model'
 import { comMotorDisponivel, lerAjuste, motoresDisponiveis, NOME_MOTOR, salvarAjuste, type MotorDisponivel } from '../../domain/analise/repository'
 import type { AlvoAssistente, AnexoLocal, ConversaIA, MensagemChat, MetaConversa } from '../../domain/assistente/model'
-import { aplicarNaDivida, aplicarNaReceita, aplicarNoCusto, contextoDoCusto, interpretarAssistente, montarPromptAssistente, quandoLegivel, rascunhoDosCampos, tamanhoLegivel, tituloDaConversa } from '../../domain/assistente/rules'
+import { aplicarNaDivida, aplicarNaReceita, aplicarNoCusto, contextoDoCusto, aplicarNoCartao, contextoDoCartao, interpretarAssistente, montarPromptAssistente, quandoLegivel, rascunhoDosCampos, tamanhoLegivel, tituloDaConversa } from '../../domain/assistente/rules'
 import { buscarConversa, executarAssistente, lerArquivo, salvarConversa } from '../../domain/assistente/repository'
 import { camposDividaVazios, totalDoFormulario, validarDivida, type CamposDivida } from '../../domain/divida/form'
 import { criarDivida } from '../../domain/divida/repository'
@@ -19,7 +19,10 @@ import { useForm } from '../../ui/useForm'
 import { Dinheiro } from '../../ui/components/Dinheiro'
 import { Simbolo } from '../../ui/components/Marca'
 import type { Dados } from '../../ui/useDados'
-import { CamposCustoForm, CamposDividaForm, CamposReceitaForm } from './formularios'
+import { CamposCartaoForm, CamposCustoForm, CamposDividaForm, CamposReceitaForm } from './formularios'
+import type { Cartao } from '../../domain/cartao/model'
+import { camposDeCartao, cartaoVazio, validarCartao, type CamposCartao } from '../../domain/cartao/form'
+import { arquivarCartao, atualizarCartao, criarCartao, excluirCartao } from '../../domain/cartao/repository'
 import type { CustoFixo } from '../../domain/custo-fixo/model'
 import { camposDeCusto, custoVazio, validarCusto, type CamposCusto } from '../../domain/custo-fixo/form'
 import { alternarCustoFixo, atualizarCustoFixo, criarCustoFixo, excluirCustoFixo } from '../../domain/custo-fixo/repository'
@@ -36,6 +39,11 @@ const nomeNaPasta = (nome: string, i: number) => {
 }
 
 const SUGESTOES: Record<AlvoAssistente, string[]> = {
+  cartao: [
+    'Nubank Roxinho, Mastercard final 4321, limite de R$ 12.000, fecha dia 3 e vence dia 10',
+    'Anexei a fatura do Itaú, cadastra o cartão para mim',
+    'Cartão Inter Black, sem anuidade, paga pela conta Inter, vence dia 15',
+  ],
   custo: [
     'Aluguel de R$ 2.500,00, vence todo dia 5, sai da conta Nubank',
     'Internet da Vivo, R$ 119,90 no cartão, dia 15',
@@ -58,6 +66,11 @@ const SUGESTOES_EDICAO = [
   'Anexei a última nota: recalcula o desconto até cair na conta',
   'O pagamento passou a cair no dia 5',
 ]
+const SUGESTOES_EDICAO_CARTAO = [
+  'Meu limite aumentou para R$ 20.000',
+  'Mudei o vencimento para o dia 15',
+  'Anexei a fatura nova, confere os dados',
+]
 const SUGESTOES_EDICAO_CUSTO = [
   'Teve reajuste: agora são R$ 2.650,00',
   'Mudou o vencimento para o dia 10',
@@ -71,7 +84,7 @@ const ROTULOS: Record<string, string> = {
   nome: 'nome', tipo: 'tipo', credor: 'credor', contratado: 'valor contratado', valor_parcela: 'parcela', total: 'total', parcelas: 'nº de parcelas',
   parcelas_pagas: 'parcelas pagas', primeiro: '1º vencimento', data_contratacao: 'data do contrato', taxa: 'juros a.m.', taxa_anual: 'juros a.a.',
   cet: 'CET', sistema: 'sistema', observacao: 'observações', fonte: 'fonte', regra: 'regra', valor_hora: 'valor da hora', horas_dia: 'horas/dia', desconto_pct: 'desconto', defasagem: 'mês de referência', valor: 'valor', valor_min: 'mínimo',
-  valor_max: 'máximo', dia: 'dia', categoria_id: 'categoria', categoria_nova: 'categoria nova', conta_id: 'conta', cartao_id: 'cartão', inicio: 'início', fim: 'fim',
+  valor_max: 'máximo', dia: 'dia', limite: 'limite', dia_fechamento: 'fechamento', dia_vencimento: 'vencimento', conta_pagamento_id: 'conta que paga', bandeira: 'bandeira', final: 'final', emissor: 'emissor', anuidade: 'anuidade', categoria_id: 'categoria', categoria_nova: 'categoria nova', conta_id: 'conta', cartao_id: 'cartão', inicio: 'início', fim: 'fim',
 }
 
 function diferencas(a: object, b: object) {
@@ -87,7 +100,7 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
   alvo: AlvoAssistente; dados: Dados; voltar: () => void; concluir: (aviso: string) => void
   conversa?: ConversaIA | null; trocar: (c: ConversaIA | null) => void
   /** Receita ou custo já cadastrado a editar: o formulário vem dele e o chat continua a conversa ligada a ele. */
-  editar?: Receita | CustoFixo | null
+  editar?: Receita | CustoFixo | Cartao | null
 }) {
   const principal = String(dados.contas.find((x) => x.principal)?.id ?? '')
   const catDividas = dados.categorias.find((k) => k.nome === 'Dívidas')?.id
@@ -95,7 +108,9 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
   const fd = useForm<CamposDivida>({ ...camposDividaVazios(catDividas ? String(catDividas) : ''), primeiro: '', ...(alvo === 'divida' ? camposIniciais.current as Partial<CamposDivida> : {}) })
   const editarReceita = alvo === 'receita' && editar ? editar as Receita : null
   const editarCusto = alvo === 'custo' && editar ? editar as CustoFixo : null
-  const editarAtivo = editar ? ('ativa' in editar ? editar.ativa : (editar as CustoFixo).ativo) : 1
+  const editarCartao = alvo === 'cartao' && editar ? editar as Cartao : null
+  const editarAtivo = editar ? ('ativa' in editar ? editar.ativa : 'arquivado' in editar ? (editar.arquivado ? 0 : 1) : (editar as CustoFixo).ativo) : 1
+  const fk = useForm<CamposCartao>(editarCartao ? camposDeCartao(editarCartao) : { ...cartaoVazio(principal), ...(alvo === 'cartao' ? camposIniciais.current as Partial<CamposCartao> : {}) })
   const fc = useForm<CamposCusto>(editarCusto ? camposDeCusto(editarCusto) : { ...custoVazio(principal), ...(alvo === 'custo' ? camposIniciais.current as Partial<CamposCusto> : {}) })
   const fr = useForm<CamposReceita>(editarReceita ? camposDeReceita(editarReceita) : { ...receitaVazia(principal), ...(alvo === 'receita' ? camposIniciais.current as Partial<CamposReceita> : {}) })
   const idConversa = useRef(conversa?.id ?? crypto.randomUUID())
@@ -149,7 +164,7 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
   }, [])
 
   // Salva a conversa sozinho: a cada mensagem e, com uma pausa, a cada correção nos campos.
-  const valoresAtuais = alvo === 'divida' ? fd.valores : alvo === 'custo' ? fc.valores : fr.valores
+  const valoresAtuais = alvo === 'divida' ? fd.valores : alvo === 'custo' ? fc.valores : alvo === 'cartao' ? fk.valores : fr.valores
   const ctxCusto = { categorias: dados.categorias.filter((k) => k.tipo === 'DESPESA'), contas: dados.contas.filter((x) => !x.arquivada), cartoes: dados.cartoes.filter((x) => !x.arquivado) }
   const valoresIniciais = useRef(JSON.stringify(valoresAtuais))
   const salvar = useRef<() => Promise<void>>(async () => {})
@@ -213,7 +228,7 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
       const formAtual = valoresAtuais
       const prompt = montarPromptAssistente({
         alvo, hoje: hoje(), historico, rascunhoAtual: rascunhoDosCampos(formAtual), arquivos: todos.map((a, i) => nomeNaPasta(a.nome, i)),
-        contexto: alvo === 'custo' ? contextoDoCusto(ctxCusto) : undefined,
+        contexto: alvo === 'custo' ? contextoDoCusto(ctxCusto) : alvo === 'cartao' ? contextoDoCartao(ctxCusto.contas) : undefined,
       })
       const exec = await comMotorDisponivel(motor, (m) => executarAssistente(m, prompt, todos, alvo, t))
       if (exec.motor !== motor) setMotor(exec.motor)
@@ -223,6 +238,9 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
       if (alvo === 'divida') {
         const novo = aplicarNaDivida(fd.valores, r.rascunho)
         mudou = diferencas(fd.valores, novo); fd.setValores(novo); fd.setErros({})
+      } else if (alvo === 'cartao') {
+        const novo = aplicarNoCartao(fk.valores, r.rascunho, ctxCusto.contas)
+        mudou = diferencas(fk.valores, novo); fk.setValores(novo); fk.setErros({})
       } else if (alvo === 'custo') {
         const novo = aplicarNoCusto(fc.valores, r.rascunho, ctxCusto)
         mudou = diferencas(fc.valores, novo); fc.setValores(novo); fc.setErros({})
@@ -271,6 +289,18 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
         const id = await criarDivida({ ...r.nova, origem: 'IA' })
         await marcarConcluida(r.nova.nome, id ?? null)
         concluir(`${r.nova.nome} cadastrada com ${r.nova.parcelas} parcelas.`)
+      } else if (alvo === 'cartao') {
+        const r = validarCartao(fk.valores)
+        if (!r.ok) { fk.setErros(r.erros); rolarAteErro(); toast.aviso('Faltam dados para salvar', 'Veja os campos marcados ao lado.'); return }
+        if (editarCartao) {
+          await atualizarCartao(editarCartao.id, r.valor)
+          await marcarConcluida(r.valor.nome, editarCartao.id)
+          concluir(`${r.valor.nome} atualizado.`)
+          return
+        }
+        const id = await criarCartao({ ...r.valor, origem: 'IA' })
+        await marcarConcluida(r.valor.nome, id ?? null)
+        concluir(`Cartão ${r.valor.nome} cadastrado.`)
       } else if (alvo === 'custo') {
         const r = validarCusto(fc.valores)
         if (!r.ok) { fc.setErros(r.erros); rolarAteErro(); toast.aviso('Faltam dados para salvar', 'Veja os campos marcados ao lado.'); return }
@@ -321,6 +351,16 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
         { rotulo: 'Falta pagar', valor: total && n ? <Dinheiro valor={Math.max(0, total - (parcela ?? 0) * pagas)} /> : null, sub: n ? `${Math.max(0, n - pagas)} parcelas` : null },
       ]
     }
+    if (alvo === 'cartao') {
+      const k = fk.valores
+      const limite = paraCentavos(k.limite)
+      const conta = dados.contas.find((x) => String(x.id) === k.conta_pagamento_id)?.nome
+      return [
+        { rotulo: 'Limite', valor: limite != null && k.limite ? <Dinheiro valor={limite} /> : null, sub: k.bandeira || null },
+        { rotulo: 'Fecha / vence', valor: k.dia_fechamento || k.dia_vencimento ? <span className="destaque-texto">dia {k.dia_fechamento || '?'} · dia {k.dia_vencimento || '?'}</span> : null, sub: conta ? `paga pela ${conta}` : null },
+        { rotulo: 'Cartão', valor: k.final ? <span className="destaque-texto">•••• {k.final}</span> : k.emissor ? <span className="destaque-texto">{k.emissor}</span> : null, sub: k.emissor && k.final ? k.emissor : null },
+      ]
+    }
     if (alvo === 'custo') {
       const c = fc.valores
       const valor = paraCentavos(c.valor)
@@ -356,10 +396,10 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
       { rotulo: 'Por ano', valor: valor ? <Dinheiro valor={valor * 12} /> : null, sub: null },
     ]),
     ]
-  }, [alvo, fd.valores, fr.valores, fc.valores, dados])
+  }, [alvo, fd.valores, fr.valores, fc.valores, fk.valores, dados])
 
   const etapas = arquivos.length ? ETAPAS_ARQUIVO : ETAPAS_TEXTO
-  const nomeItem = alvo === 'divida' ? 'dívida' : alvo === 'custo' ? 'custo fixo' : 'receita'
+  const nomeItem = alvo === 'divida' ? 'dívida' : alvo === 'custo' ? 'custo fixo' : alvo === 'cartao' ? 'cartão' : 'receita'
   const contas = dados.contas.filter((x) => !x.arquivada)
 
   return (
@@ -367,23 +407,31 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
       <header className="assistente-topo">
         <button className="botao-voltar" onClick={sairSalvando}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          {alvo === 'divida' ? 'Dívidas' : alvo === 'custo' ? 'Custos fixos' : 'Receitas'}
+          {alvo === 'divida' ? 'Dívidas' : alvo === 'custo' ? 'Custos fixos' : alvo === 'cartao' ? 'Cartões' : 'Receitas'}
         </button>
         <div className="assistente-titulo">
           <h1>{editar ? (valoresAtuais as { nome?: string }).nome || editar.nome : concluida ? conversa?.titulo : conversa || mensagens.length ? tituloDaConversa((valoresAtuais as { nome?: string }).nome, meta?.resumo, mensagens) : `Nova ${nomeItem} com IA`}</h1>
           <span className="sutil salvo">
-            {editar ? <>{editarAtivo ? 'Editando' : `${alvo === 'custo' ? 'Pausado' : 'Pausada'} · editando`}{salvoEm ? <> · <i className="ponto-salvo" />conversa salva {quandoLegivel(salvoEm)}</> : ' · peça mudanças no chat ou edite ao lado'}</> : concluida ? <>Cadastrada · conversa salva</> : salvoEm ? <><i className="ponto-salvo" />Rascunho salvo {quandoLegivel(salvoEm)}</> : 'Conte, cole ou anexe. Tudo é salvo como rascunho até você confirmar.'}
+            {editar ? <>{editarAtivo ? 'Editando' : `${alvo === 'cartao' ? 'Arquivado' : alvo === 'custo' ? 'Pausado' : 'Pausada'} · editando`}{salvoEm ? <> · <i className="ponto-salvo" />conversa salva {quandoLegivel(salvoEm)}</> : ' · peça mudanças no chat ou edite ao lado'}</> : concluida ? <>Cadastrada · conversa salva</> : salvoEm ? <><i className="ponto-salvo" />Rascunho salvo {quandoLegivel(salvoEm)}</> : 'Conte, cole ou anexe. Tudo é salvo como rascunho até você confirmar.'}
           </span>
         </div>
         {editar && (
           <div className="acoes-item">
             <button className="botao secundario" onClick={async () => {
+              if (alvo === 'cartao') {
+                await arquivarCartao(editar.id, !!editarAtivo)
+                return concluir(`${editar.nome} ${editarAtivo ? 'arquivado' : 'reativado'}.`)
+              }
               if (alvo === 'custo') await alternarCustoFixo(editar.id, !editarAtivo); else await alternarReceita(editar.id, !editarAtivo)
               concluir(`${editar.nome} ${editarAtivo ? (alvo === 'custo' ? 'pausado: saiu do mês' : 'pausada: saiu da previsão') : (alvo === 'custo' ? 'reativado' : 'reativada')}.`)
             }}>
-              {editarAtivo ? 'Pausar' : 'Reativar'}
+              {alvo === 'cartao' ? (editarAtivo ? 'Arquivar' : 'Reativar') : editarAtivo ? 'Pausar' : 'Reativar'}
             </button>
             <BotaoExcluir rotulo="Excluir" onConfirmar={async () => {
+              if (alvo === 'cartao') {
+                const r = await excluirCartao(editar.id)
+                return concluir(r === 'arquivado' ? `${editar.nome} tem compras: foi arquivado em vez de excluído.` : `${editar.nome} excluído.`)
+              }
               if (alvo === 'custo') await excluirCustoFixo(editar.id); else await excluirReceita(editar.id)
               concluir(`${editar.nome} ${alvo === 'custo' ? 'excluído' : 'excluída'}.`)
             }} />
@@ -414,12 +462,12 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
             {!mensagens.length && (
               <div className="chat-vazio">
                 <div className="chat-vazio-icone"><Simbolo tamanho={44} /></div>
-                <h2>{editar ? `O que mudou em ${editar.nome}?` : alvo === 'custo' ? 'Que custo fixo é esse?' : `Como é essa ${nomeItem}?`}</h2>
+                <h2>{editar ? `O que mudou em ${editar.nome}?` : alvo === 'custo' ? 'Que custo fixo é esse?' : alvo === 'cartao' ? 'Que cartão é esse?' : `Como é essa ${nomeItem}?`}</h2>
                 <p>{editar
                   ? 'Conte a mudança ou anexe a nota, holerite ou contrato novo. Eu atualizo os campos ao lado e você salva quando estiver certo.'
                   : 'Escreva do seu jeito ou anexe qualquer arquivo: contrato, boleto, extrato, print, PDF, planilha, foto. Eu leio, extraio os detalhes e monto o cadastro ao lado.'}</p>
                 <div className="chat-sugestoes">
-                  {(editar ? (alvo === 'custo' ? SUGESTOES_EDICAO_CUSTO : SUGESTOES_EDICAO) : SUGESTOES[alvo]).map((s) => <button key={s} onClick={() => { setTexto(s); caixa.current?.focus() }}>{s}</button>)}
+                  {(editar ? (alvo === 'custo' ? SUGESTOES_EDICAO_CUSTO : alvo === 'cartao' ? SUGESTOES_EDICAO_CARTAO : SUGESTOES_EDICAO) : SUGESTOES[alvo]).map((s) => <button key={s} onClick={() => { setTexto(s); caixa.current?.focus() }}>{s}</button>)}
                 </div>
               </div>
             )}
@@ -518,6 +566,8 @@ export function Assistente({ alvo, dados, voltar, concluir, conversa, trocar, ed
           <div className="revisao-form">
             {alvo === 'divida'
               ? <CamposDividaForm f={fd} nova foco={false} categorias={dados.categorias} destacar={destacar} />
+              : alvo === 'cartao'
+                ? <CamposCartaoForm f={fk} contas={contas} destacar={destacar} />
               : alvo === 'custo'
                 ? <CamposCustoForm f={fc} categorias={dados.categorias} contas={contas} cartoes={dados.cartoes.filter((x) => !x.arquivado)} destacar={destacar} />
                 : <CamposReceitaForm f={fr} categorias={dados.categorias} contas={contas} destacar={destacar} />}

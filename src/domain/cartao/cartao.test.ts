@@ -23,7 +23,7 @@ import { l } from '../lancamento/fixtures'
 import { totaisDaCompetencia } from '../lancamento/rules'
 
 describe('pagamento de fatura', () => {
-  const k = { id: 5, nome: 'K', limite: 100000, dia_fechamento: 3, dia_vencimento: 10, conta_pagamento_id: 1, arquivado: 0 as const }
+  const k = { id: 5, nome: 'K', limite: 100000, dia_fechamento: 3, dia_vencimento: 10, conta_pagamento_id: 1, arquivado: 0 as const, bandeira: null, final: null, emissor: null, anuidade: null, observacao: null, origem: 'MANUAL' as const }
   const compras = [l({ cartao_id: 5, conta_id: null, valor: 3000, data: '2026-11-10' }), l({ cartao_id: 5, conta_id: null, valor: 2000, data: '2026-11-20' })]
   it('parcial, paga e limite em aberto', () => {
     const pg = l({ valor: 1000, data: '2026-12-08', categoria_id: null, fatura_ref: marcaDePagamento(5, '2026-12') })

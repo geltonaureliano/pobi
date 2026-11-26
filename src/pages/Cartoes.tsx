@@ -1,13 +1,19 @@
 import { useState } from 'react'
 import { formatarBRL } from '../shared/dinheiro'
 import { competenciaDe, deslocarCompetencia, hoje, rotuloCompetencia } from '../shared/data'
-import { atualizarCartao, criarCartao, excluirCartao } from '../domain/cartao/repository'
-import { validarCartao, type CamposCartao } from '../domain/cartao/form'
+import { criarCartao } from '../domain/cartao/repository'
+import { cartaoVazio, validarCartao, type CamposCartao } from '../domain/cartao/form'
+import type { ConversaIA } from '../domain/assistente/model'
+import { buscarConversa, buscarConversaDoItem } from '../domain/assistente/repository'
+import { EscolhaCadastro } from '../ui/components/EscolhaCadastro'
+import { Assistente } from './assistente/Assistente'
+import { BotaoConversas, HistoricoConversas } from './assistente/Historico'
+import { CamposCartaoForm } from './assistente/formularios'
 import { emAbertoNoCartao, faturaDaCompra, faturasDoPeriodo, marcaDePagamento, type ResumoFatura } from '../domain/cartao/rules'
 import type { Cartao } from '../domain/cartao/model'
 import { criarLancamento } from '../domain/lancamento/repository'
-import { Modal, BotaoExcluir } from '../ui/components/Modal'
-import { Campo, Vazio, Texto, Data, Moeda, Selecao } from '../ui/components/Campos'
+import { Modal, IconeEditar } from '../ui/components/Modal'
+import { Campo, Vazio, Data, Moeda, Selecao } from '../ui/components/Campos'
 import { Barra } from '../ui/components/Barra'
 import { useForm } from '../ui/useForm'
 import { Dinheiro } from '../ui/components/Dinheiro'
@@ -17,9 +23,13 @@ import { toast } from '../ui/toast'
 const reais = (c: number) => (c / 100).toFixed(2).replace('.', ',')
 
 export function Cartoes({ dados, recarregar }: { dados: Dados; recarregar: () => void }) {
-  const [cartaoEd, setCartaoEd] = useState<number | 'novo' | null>(null)
+  const [novo, setNovo] = useState(false)
+  const [escolhendo, setEscolhendo] = useState(false)
+  const [historico, setHistorico] = useState(false)
+  const [assistente, setAssistente] = useState<{ conversa: ConversaIA | null; editar: Cartao | null } | null>(null)
   const [pagando, setPagando] = useState<{ cartao: Cartao; fatura: ResumoFatura } | null>(null)
-  const fk = useForm<CamposCartao>({ nome: '', limite: '', dia_fechamento: '', dia_vencimento: '', conta_pagamento_id: '' })
+  const principal = String(dados.contas.find((x) => x.principal)?.id ?? '')
+  const fk = useForm<CamposCartao>(cartaoVazio(principal))
   const fp = useForm({ conta_id: '', valor: '', data: hoje() })
   const ativas = dados.contas.filter((x) => !x.arquivada)
   const cartoes = dados.cartoes.filter((x) => !x.arquivado)
@@ -27,19 +37,16 @@ export function Cartoes({ dados, recarregar }: { dados: Dados; recarregar: () =>
   const limiteTotal = cartoes.reduce((s, k) => s + k.limite, 0)
   const usadoTotal = cartoes.reduce((s, k) => s + emAbertoNoCartao(k, dados.lancamentos), 0)
 
-  function abrirCartao(k?: Cartao) {
-    fk.reiniciar(k
-      ? { nome: k.nome, limite: reais(k.limite), dia_fechamento: String(k.dia_fechamento), dia_vencimento: String(k.dia_vencimento), conta_pagamento_id: k.conta_pagamento_id ? String(k.conta_pagamento_id) : '' }
-      : { nome: '', limite: '', dia_fechamento: '', dia_vencimento: '', conta_pagamento_id: String(ativas.find((x) => x.principal)?.id ?? '') })
-    setCartaoEd(k ? k.id : 'novo')
-  }
-  async function salvarCartao() {
+  async function salvarNovo() {
     const r = validarCartao(fk.valores)
     if (!r.ok) return fk.setErros(r.erros)
-    if (cartaoEd === 'novo') await criarCartao(r.valor)
-    else if (cartaoEd != null) await atualizarCartao(cartaoEd, r.valor)
-    toast.sucesso(cartaoEd === 'novo' ? 'Cartão adicionado' : 'Cartão atualizado', r.valor.nome)
-    setCartaoEd(null); recarregar()
+    await criarCartao(r.valor)
+    toast.sucesso('Cartão adicionado', r.valor.nome)
+    setNovo(false); recarregar()
+  }
+  /** Editar abre a página do assistente, com o chat ligado a esse cartão. */
+  async function editarComChat(k: Cartao) {
+    setAssistente({ conversa: await buscarConversaDoItem('cartao', k.id).catch(() => null), editar: k })
   }
   function abrirPagamento(cartao: Cartao, fatura: ResumoFatura) {
     fp.reiniciar({ conta_id: String(cartao.conta_pagamento_id ?? ativas[0]?.id ?? ''), valor: reais(fatura.emAberto), data: hoje() })
@@ -58,11 +65,30 @@ export function Cartoes({ dados, recarregar }: { dados: Dados; recarregar: () =>
     setPagando(null); recarregar()
   }
 
+  if (assistente) {
+    const { conversa: conv, editar } = assistente
+    return <Assistente key={`${editar?.id ?? ''}-${conv?.id ?? 'nova'}`} alvo="cartao" dados={dados} conversa={conv} editar={editar}
+      trocar={(x) => setAssistente({ conversa: x, editar: null })}
+      voltar={() => setAssistente(null)} concluir={(msg) => { setAssistente(null); toast.sucesso(msg); recarregar() }} />
+  }
+  const arquivados = dados.cartoes.filter((x) => x.arquivado)
+
   return (
     <>
-      <div className="topo"><h1>Cartões</h1><span className="sutil">{cartoes.length ? `em aberto ${formatarBRL(usadoTotal)} de ${formatarBRL(limiteTotal)}` : 'nenhum cartão'}</span></div>
+      <div className="topo">
+        <h1>Cartões</h1>
+        <div className="acoes">
+          <span className="sutil">{cartoes.length ? `em aberto ${formatarBRL(usadoTotal)} de ${formatarBRL(limiteTotal)}` : 'nenhum cartão'}</span>
+          <BotaoConversas alvo="cartao" onClick={() => setHistorico(true)} />
+          <button className="botao" onClick={() => setEscolhendo(true)}>Novo cartão</button>
+        </div>
+      </div>
+      <HistoricoConversas alvo="cartao" aberto={historico} fechar={() => setHistorico(false)} nova={() => setAssistente({ conversa: null, editar: null })}
+        abrir={async (id) => { const x = await buscarConversa(id); if (x) setAssistente({ conversa: x, editar: x.status === 'CONCLUIDA' && x.item_id ? dados.cartoes.find((k) => k.id === x.item_id) ?? null : null }) }} />
+      <EscolhaCadastro aberto={escolhendo} fechar={() => setEscolhendo(false)} titulo="Novo cartão" item="do cartão"
+        manual={() => { setEscolhendo(false); fk.reiniciar(cartaoVazio(principal)); setNovo(true) }} ia={() => { setEscolhendo(false); setAssistente({ conversa: null, editar: null }) }} />
       <div className="secao">
-        <div className="secao-topo"><h3>Seus cartões</h3><button className="botao" onClick={() => abrirCartao()}>Novo cartão</button></div>
+        <div className="secao-topo"><h3>Seus cartões</h3></div>
         {!cartoes.length && <Vazio>Nenhum cartão cadastrado.</Vazio>}
         {cartoes.map((k) => {
           const atualFat = faturaDaCompra(k, hoje())
@@ -71,8 +97,21 @@ export function Cartoes({ dados, recarregar }: { dados: Dados; recarregar: () =>
           return (
             <div key={k.id} style={{ marginBottom: 22 }}>
               <div className="secao-topo" style={{ marginBottom: 10 }}>
-                <div><strong>{k.nome}</strong> <span className="sutil">· fecha dia {k.dia_fechamento} · vence dia {k.dia_vencimento}</span></div>
-                <div className="acoes"><button className="aba" onClick={() => abrirCartao(k)}>editar</button><BotaoExcluir rotulo="remover" aviso={`Cartão ${k.nome} removido`} onConfirmar={async () => { await excluirCartao(k.id); recarregar() }} /></div>
+                <div className="cartao-titulo">
+                  <span className={`cartao-chip ${(k.bandeira ?? '').toLowerCase().replace(/\s+/g, '-')}`} aria-hidden="true" />
+                  <div>
+                    <div className="receita-nome"><strong>{k.nome}</strong>{k.origem === 'IA' && <span className="tag ia">IA</span>}</div>
+                    <div className="divida-meta">
+                      {k.emissor && <span>{k.emissor}</span>}
+                      {k.bandeira && <span>{k.bandeira}</span>}
+                      {k.final && <span>•••• {k.final}</span>}
+                      <span>fecha dia {k.dia_fechamento}</span>
+                      <span>vence dia {k.dia_vencimento}</span>
+                      {k.anuidade ? <span>anuidade <Dinheiro valor={k.anuidade} />/mês</span> : null}
+                    </div>
+                  </div>
+                </div>
+                <div className="acoes"><button className="botao-icone" onClick={() => editarComChat(k)} aria-label={`Editar ${k.nome}`} title="Editar (abre o assistente)"><IconeEditar /></button></div>
               </div>
               <Barra rotulo={`Limite usado ${formatarBRL(aberto)} de ${formatarBRL(k.limite)}`} direita={`disponível ${formatarBRL(k.limite - aberto)}`} fracao={k.limite ? aberto / k.limite : 0} estourada={aberto > k.limite} />
               <table className="tabela">
@@ -94,14 +133,20 @@ export function Cartoes({ dados, recarregar }: { dados: Dados; recarregar: () =>
             </div>
           )
         })}
+        {arquivados.length > 0 && (
+          <div className="fora-do-mes">
+            <span className="sutil">Arquivados:</span>
+            {arquivados.map((k) => (
+              <span key={k.id} className="chip-fora">{k.nome}{k.final && <small>•••• {k.final}</small>}
+                <button className="botao-icone" onClick={() => editarComChat(k)} aria-label={`Editar ${k.nome}`} title="Editar (abre o assistente)"><IconeEditar /></button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
-      <Modal titulo={cartaoEd === 'novo' ? 'Novo cartão' : 'Editar cartão'} aberto={cartaoEd != null} fechar={() => setCartaoEd(null)} rodape={<button className="botao" onClick={salvarCartao}>Salvar</button>}>
-        <Campo rotulo="Nome" erro={fk.erros.nome} largo><Texto autoFocus {...fk.campo('nome')} /></Campo>
-        <Campo rotulo="Limite" erro={fk.erros.limite}><Moeda {...fk.campo('limite')} /></Campo>
-        <Campo rotulo="Conta que paga a fatura"><Selecao {...fk.campo('conta_pagamento_id')} itens={ativas} /></Campo>
-        <Campo rotulo="Dia do fechamento" erro={fk.erros.dia_fechamento}><Texto numerico maxLength={2} {...fk.campo('dia_fechamento')} /></Campo>
-        <Campo rotulo="Dia do vencimento" erro={fk.erros.dia_vencimento}><Texto numerico maxLength={2} {...fk.campo('dia_vencimento')} /></Campo>
+      <Modal titulo={'Novo cartão'} aberto={novo} fechar={() => setNovo(false)} largura={640} rodape={<button className="botao" onClick={salvarNovo}>Salvar</button>}>
+        <CamposCartaoForm f={fk} foco contas={ativas} />
       </Modal>
 
       <Modal titulo={pagando ? `Pagar fatura ${pagando.cartao.nome} · ${rotuloCompetencia(pagando.fatura.fatura)}` : ''} aberto={pagando != null} fechar={() => setPagando(null)} rodape={<button className="botao" onClick={pagar}>Registrar pagamento</button>}>

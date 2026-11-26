@@ -40,6 +40,12 @@ fn migracoes() -> Vec<Migration> {
         description: "custos fixos com ia",
         sql: include_str!("../migrations/006_custos_com_ia.sql"),
         kind: MigrationKind::Up,
+    },
+    Migration {
+        version: 7,
+        description: "cartoes com ia",
+        sql: include_str!("../migrations/007_cartoes_com_ia.sql"),
+        kind: MigrationKind::Up,
     }]
 }
 

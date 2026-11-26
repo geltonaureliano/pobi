@@ -32,7 +32,24 @@ function simular(alvo: AlvoAssistente, t: string, anexos: AnexoLocal[]): Promise
   const pagas = Number(t.match(/(?:paguei|pagas?)\s*(\d+)/i)?.[1] ?? 0) || null
   const taxa = Number((t.match(/(\d+(?:[,.]\d+)?)\s*%/)?.[1] ?? '').replace(',', '.')) || null
   const grandes = valores.filter((v) => v >= 50).sort((a, b) => b - a)
-  const r = alvo === 'custo'
+  const r = alvo === 'cartao'
+    ? {
+        resposta: 'Modo demonstração (no navegador a IA local não roda). Montei o cartão com o que você escreveu. Confira ao lado.',
+        resumo: 'Cartão de crédito a confirmar.',
+        confianca: 'media',
+        pendencias: [!/fecha/i.test(t) && 'Em que dia a fatura fecha?'].filter(Boolean),
+        rascunho: {
+          nome: t.match(/(nubank[^,]*|ita[uú][^,]*|inter[^,]*|c6[^,]*|bradesco[^,]*|santander[^,]*)/i)?.[1]?.trim() ?? null,
+          emissor: /nubank/i.test(t) ? 'Nubank' : /ita[uú]/i.test(t) ? 'Itaú' : /inter/i.test(t) ? 'Inter' : null,
+          bandeira: /master/i.test(t) ? 'Mastercard' : /visa/i.test(t) ? 'Visa' : /elo\b/i.test(t) ? 'Elo' : null,
+          final: t.match(/final\s*(\d{4})/i)?.[1] ?? null,
+          limite: grandes[0] ?? null,
+          dia_fechamento: Number(t.match(/fecha\D*(\d{1,2})/i)?.[1] ?? 0) || null,
+          dia_vencimento: Number(t.match(/vence\D*(\d{1,2})/i)?.[1] ?? 0) || null,
+          anuidade: /sem anuidade|isent/i.test(t) ? 0 : null,
+        },
+      }
+    : alvo === 'custo'
     ? {
         resposta: 'Modo demonstração (no navegador a IA local não roda). Montei o custo fixo com o que você escreveu e escolhi a categoria que mais combina. Confira ao lado.',
         resumo: 'Custo fixo mensal a confirmar.',

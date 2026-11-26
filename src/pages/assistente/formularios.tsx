@@ -5,6 +5,8 @@ import { SISTEMAS, TIPOS_DIVIDA } from '../../domain/divida/model'
 import { taxaAnualDe } from '../../domain/divida/rules'
 import { parametrosPorHora, type CamposReceita } from '../../domain/receita/form'
 import type { CamposCusto } from '../../domain/custo-fixo/form'
+import type { CamposCartao } from '../../domain/cartao/form'
+import { BANDEIRAS } from '../../domain/cartao/model'
 import { previsaoDaReceita } from '../../domain/receita/rules'
 import { competenciaDe, deslocarCompetencia, hoje, rotuloCompetencia } from '../../shared/data'
 import type { Categoria } from '../../domain/categoria/model'
@@ -169,6 +171,27 @@ export function CamposCustoForm({ f, categorias, contas, cartoes, destacar = [],
       <div className={d('inicio')}><Campo rotulo="A partir de" erro={f.erros.inicio}><Data {...f.campo('inicio')} /></Campo></div>
       <div className={d('fim')}><Campo rotulo="Até" erro={f.erros.fim} dica="Vazio = sem data para acabar"><Data {...f.campo('fim')} /></Campo></div>
       <div className={d('observacao')} style={{ gridColumn: '1 / -1' }}><Campo rotulo="Observações"><AreaTexto linhas={2} placeholder="Reajuste anual, fidelidade, multa…" {...f.campo('observacao')} /></Campo></div>
+    </>
+  )
+}
+
+/** Campos do cartão de crédito. Guarda só os 4 últimos dígitos. */
+export function CamposCartaoForm({ f, contas, destacar = [], foco }: {
+  f: Form<CamposCartao>; contas: { id: number; nome: string }[]; destacar?: string[]; foco?: boolean
+}) {
+  const d = (k: keyof CamposCartao) => (destacar.includes(k) ? 'destacado' : undefined)
+  return (
+    <>
+      <div className={d('nome')} style={{ gridColumn: '1 / -1' }}><Campo rotulo="Nome" erro={f.erros.nome}><Texto autoFocus={foco} placeholder="Nubank Roxinho, Itaú Black…" {...f.campo('nome')} /></Campo></div>
+      <div className={d('emissor')}><Campo rotulo="Banco emissor"><Texto placeholder="Nubank, Itaú…" {...f.campo('emissor')} /></Campo></div>
+      <div className={d('bandeira')}><Campo rotulo="Bandeira"><Selecao {...f.campo('bandeira')} itens={BANDEIRAS} vazio="Não informada" /></Campo></div>
+      <div className={d('final')}><Campo rotulo="Final" erro={f.erros.final} dica="Só os 4 últimos dígitos"><Texto numerico maxLength={4} prefixo="••••" placeholder="1234" {...f.campo('final')} /></Campo></div>
+      <div className={d('limite')}><Campo rotulo="Limite" erro={f.erros.limite}><Moeda {...f.campo('limite')} /></Campo></div>
+      <div className={d('dia_fechamento')}><Campo rotulo="Fatura fecha dia" erro={f.erros.dia_fechamento}><Texto numerico maxLength={2} placeholder="3" {...f.campo('dia_fechamento')} /></Campo></div>
+      <div className={d('dia_vencimento')}><Campo rotulo="Fatura vence dia" erro={f.erros.dia_vencimento}><Texto numerico maxLength={2} placeholder="10" {...f.campo('dia_vencimento')} /></Campo></div>
+      <div className={d('conta_pagamento_id')}><Campo rotulo="Conta que paga a fatura"><Selecao {...f.campo('conta_pagamento_id')} itens={contas} /></Campo></div>
+      <div className={d('anuidade')}><Campo rotulo="Anuidade por mês" erro={f.erros.anuidade} dica="Vazio ou 0 = isento"><Moeda {...f.campo('anuidade')} /></Campo></div>
+      <div className={d('observacao')} style={{ gridColumn: '1 / -1' }}><Campo rotulo="Observações"><AreaTexto linhas={2} placeholder="Pontos, cashback, seguros, isenção…" {...f.campo('observacao')} /></Campo></div>
     </>
   )
 }

@@ -131,3 +131,18 @@ describe('custo fixo com IA', () => {
     expect(acharPorNome(ctx.contas, 'Banco')).toBeNull()
   })
 })
+
+import { aplicarNoCartao } from './rules'
+import { cartaoVazio, validarCartao } from '../cartao/form'
+
+describe('cartão com IA', () => {
+  const contas = [{ id: 1, nome: 'Nubank' }, { id: 2, nome: 'Itaú' }]
+  it('guarda só os 4 últimos dígitos e acha a conta', () => {
+    const r = aplicarNoCartao(cartaoVazio(), { nome: 'Itaú Black', bandeira: 'master', final: '5162 1234 5678 9012', limite: 25000, dia_fechamento: 3, dia_vencimento: 10, conta_pagamento: 'itau' }, contas)
+    expect(r).toMatchObject({ nome: 'Itaú Black', bandeira: 'Mastercard', final: '9012', limite: '25.000,00', dia_fechamento: '3', dia_vencimento: '10', conta_pagamento_id: '2' })
+  })
+  it('validar recusa final com tamanho errado', () => {
+    const r = validarCartao({ ...cartaoVazio(), nome: 'X', limite: '0', dia_fechamento: '1', dia_vencimento: '8', final: '12' })
+    expect(r.ok).toBe(false)
+  })
+})

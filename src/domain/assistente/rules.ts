@@ -4,6 +4,7 @@ import type { CamposDivida } from '../divida/form'
 import { SISTEMAS, TIPOS_DIVIDA } from '../divida/model'
 import type { CamposReceita } from '../receita/form'
 import type { CamposCusto } from '../custo-fixo/form'
+import type { CamposCartao } from '../cartao/form'
 import type { AlvoAssistente, Confianca, MensagemChat, RespostaAssistente } from './model'
 
 /* ------------------------------------------------------------------ */
@@ -59,9 +60,21 @@ const CAMPOS: Record<AlvoAssistente, string> = {
   "fim": "AAAA-MM-DD",            // só se tiver data para acabar (ex.: fidelidade)
   "observacao": string            // reajuste anual, fidelidade, multa…
 }`,
+  cartao: `{
+  "nome": string,                 // como o usuário chama o cartão, ex.: "Nubank Roxinho", "Itaú Black"
+  "emissor": string,              // banco ou empresa que emite
+  "bandeira": "Visa" | "Mastercard" | "Elo" | "American Express" | "Hipercard" | "Outra",
+  "final": string,                // SOMENTE os 4 últimos dígitos. Nunca escreva o número completo, CVV ou validade
+  "limite": number,               // limite total, em reais
+  "dia_fechamento": number,       // dia em que a fatura fecha (1 a 31)
+  "dia_vencimento": number,       // dia em que a fatura vence (1 a 31)
+  "conta_pagamento": string,      // nome exato de uma conta existente que paga a fatura (ou null)
+  "anuidade": number,             // valor mensal da anuidade/tarifa, em reais (0 se isenta)
+  "observacao": string            // programa de pontos, cashback, seguro, isenção de anuidade…
+}`,
 }
 
-const NOME: Record<AlvoAssistente, string> = { divida: 'uma dívida', receita: 'uma receita recorrente', custo: 'um custo fixo mensal (despesa que se repete todo mês)' }
+const NOME: Record<AlvoAssistente, string> = { divida: 'uma dívida', receita: 'uma receita recorrente', custo: 'um custo fixo mensal (despesa que se repete todo mês)', cartao: 'um cartão de crédito' }
 
 export function montarPromptAssistente(p: {
   alvo: AlvoAssistente
@@ -273,5 +286,36 @@ export function aplicarNoCusto(f: CamposCusto, r: Record<string, unknown>, ctx: 
   const conta = acharPorNome(ctx.contas, r.conta)
   if (cartao) { novo.cartao_id = String(cartao.id); novo.conta_id = '' }
   else if (conta) { novo.conta_id = String(conta.id); novo.cartao_id = '' }
+  return novo
+}
+
+export const contextoDoCartao = (contas: { nome: string }[]) =>
+  `Contas existentes (para "conta_pagamento"): ${contas.map((c) => c.nome).join(', ') || '(nenhuma)'}.
+Se a fatura mostrar fechamento e vencimento, use esses dias. Se só houver o vencimento, deixe o fechamento null e peça em "pendencias".
+Nunca repita números completos de cartão, CVV ou validade, nem na resposta.`
+
+const BANDEIRAS_IA = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Outra']
+
+export function aplicarNoCartao(f: CamposCartao, r: Record<string, unknown>, contas: { id: number; nome: string }[]): CamposCartao {
+  const novo = { ...f }
+  const set = <K extends keyof CamposCartao>(k: K, v: CamposCartao[K] | null) => { if (v != null) novo[k] = v }
+  set('nome', str(r.nome))
+  set('emissor', str(r.emissor))
+  const b = str(r.bandeira)
+  if (b) novo.bandeira = BANDEIRAS_IA.find((x) => normalizar(x) === normalizar(b) || (normalizar(b).startsWith('master') && x === 'Mastercard') || (normalizar(b).includes('amex') && x === 'American Express')) ?? 'Outra'
+  // Só os 4 últimos dígitos, mesmo que venha o número inteiro.
+  const digitos = typeof r.final === 'string' || typeof r.final === 'number' ? String(r.final).replace(/\D/g, '') : ''
+  if (digitos.length >= 4) novo.final = digitos.slice(-4)
+  const limite = num(r.limite)
+  if (limite != null && limite >= 0) novo.limite = centavosParaTexto(Math.round(limite * 100))
+  for (const k of ['dia_fechamento', 'dia_vencimento'] as const) {
+    const d = num(r[k])
+    if (d != null && d >= 1 && d <= 31) novo[k] = String(Math.round(d))
+  }
+  const conta = acharPorNome(contas, r.conta_pagamento)
+  if (conta) novo.conta_pagamento_id = String(conta.id)
+  const anuidade = num(r.anuidade)
+  if (anuidade != null && anuidade >= 0) novo.anuidade = centavosParaTexto(Math.round(anuidade * 100))
+  set('observacao', str(r.observacao))
   return novo
 }
