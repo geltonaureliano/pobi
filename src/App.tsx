@@ -16,14 +16,14 @@ import { Categorias } from './pages/Categorias'
 import { Relatorio } from './pages/Relatorio'
 import { Anual } from './pages/Anual'
 import { Analises } from './pages/Analises'
-import { Ajustes } from './pages/Ajustes'
+import { Ajustes, type AbaAjustes } from './pages/Ajustes'
 
 type Pagina = Exclude<keyof typeof Icones & string, 'orcamentos'>
 const MENU: { grupo: string; itens: { id: Pagina; rotulo: string }[] }[] = [
   { grupo: 'Principal', itens: [{ id: 'painel', rotulo: 'Dashboard' }, { id: 'lancamentos', rotulo: 'Lançamentos' }] },
   { grupo: 'Cadastros', itens: [
-    { id: 'contas', rotulo: 'Contas' }, { id: 'cartoes', rotulo: 'Cartões' }, { id: 'receitas', rotulo: 'Receitas' },
-    { id: 'custos', rotulo: 'Custos fixos' }, { id: 'dividas', rotulo: 'Dívidas' }, { id: 'categorias', rotulo: 'Categorias' },
+    { id: 'receitas', rotulo: 'Receitas' }, { id: 'custos', rotulo: 'Custos fixos' }, { id: 'cartoes', rotulo: 'Cartões' },
+    { id: 'dividas', rotulo: 'Dívidas' },
   ] },
   { grupo: 'Análise', itens: [{ id: 'relatorio', rotulo: 'Relatório mensal' }, { id: 'anual', rotulo: 'Análise anual' }, { id: 'analises', rotulo: 'Radar IA' }] },
   { grupo: 'Sistema', itens: [{ id: 'ajustes', rotulo: 'Ajustes' }] },
@@ -31,13 +31,18 @@ const MENU: { grupo: string; itens: { id: Pagina; rotulo: string }[] }[] = [
 
 export default function App() {
   const [pagina, setPagina] = useState<Pagina>('painel')
+  const [abaAjustes, setAbaAjustes] = useState<AbaAjustes>('perfil')
+  /** Contas e Categorias moram em Ajustes: quem pedir essas páginas cai na aba certa. */
+  const ir = (p: Pagina) => {
+    if (p === 'contas' || p === 'categorias') { setAbaAjustes(p); setPagina('ajustes') } else setPagina(p)
+  }
   const { dados, erro, recarregar } = useDados()
 
   let corpo: ReactNode = <div className="secao sutil">{erro ?? 'Carregando…'}</div>
   if (dados) {
     const p = { dados, recarregar }
     corpo = {
-      painel: <Painel dados={dados} ir={setPagina} />,
+      painel: <Painel dados={dados} ir={ir} />,
       lancamentos: <Lancamentos {...p} />,
       relatorio: <Relatorio dados={dados} />,
       anual: <Anual dados={dados} />,
@@ -48,7 +53,7 @@ export default function App() {
       custos: <CustosFixos {...p} />,
       dividas: <Dividas {...p} />,
       categorias: <Categorias {...p} />,
-      ajustes: <Ajustes />,
+      ajustes: <Ajustes dados={dados} recarregar={recarregar} aba={abaAjustes} setAba={setAbaAjustes} />,
     }[pagina]
   }
 
@@ -71,7 +76,7 @@ export default function App() {
             })}
           </div>
         ))}
-        <Perfil dados={dados} />
+        <Perfil dados={dados} ativo={pagina === 'ajustes' && abaAjustes === 'perfil'} abrir={() => { setAbaAjustes('perfil'); setPagina('ajustes') }} />
       </aside>
       <main className="conteudo"><div className="painel" key={pagina}>{corpo}</div></main>
       </div>
